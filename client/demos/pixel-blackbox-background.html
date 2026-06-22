@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BlackBox Pixel Background Demo</title>
+  <style>
+    :root {
+      --void: #030405;
+      --ink: #f7f7f0;
+      --blue: #251ccf;
+      --cyan: #74e7ff;
+      --lime: #d7ff64;
+      --panel: #d6d6d6;
+      --shadow: #050505;
+      --pixel: "Courier New", "Lucida Console", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      overflow: hidden;
+      color: var(--ink);
+      background: var(--void);
+      font-family: var(--pixel);
+    }
+
+    .demo {
+      position: relative;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      isolation: isolate;
+      background:
+        radial-gradient(circle at 50% 38%, rgba(58, 46, 255, 0.16), transparent 28%),
+        radial-gradient(circle at 20% 80%, rgba(116, 231, 255, 0.08), transparent 24%),
+        linear-gradient(#050607, #000);
+    }
+
+    .pixel-sky,
+    .pixel-rain,
+    .contours,
+    .scanlines,
+    .vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .pixel-sky {
+      opacity: 0.84;
+      background:
+        radial-gradient(circle, rgba(255,255,255,0.98) 0 1px, transparent 1.5px) 0 0 / 18px 18px,
+        radial-gradient(circle, rgba(116,231,255,0.78) 0 1px, transparent 1.5px) 9px 11px / 38px 38px;
+      mask-image: linear-gradient(90deg, transparent 0 5%, #000 16% 88%, transparent 100%);
+      animation: starDrift 18s steps(42) infinite;
+    }
+
+    .pixel-rain {
+      opacity: 0.32;
+      background:
+        repeating-linear-gradient(90deg, transparent 0 26px, rgba(255,255,255,0.72) 26px 28px, transparent 28px 36px),
+        repeating-linear-gradient(180deg, transparent 0 9px, rgba(255,255,255,0.82) 9px 11px, transparent 11px 18px);
+      background-size: 54px 100%, 100% 24px;
+      mix-blend-mode: screen;
+      animation: matrixFall 5s steps(20) infinite;
+    }
+
+    .contours {
+      filter: drop-shadow(0 0 8px rgba(116, 231, 255, 0.18));
+      opacity: 0.72;
+    }
+
+    .contours::before,
+    .contours::after {
+      content: "";
+      position: absolute;
+      width: 34vw;
+      height: 70vh;
+      min-width: 280px;
+      top: 9vh;
+      border: 0;
+      background:
+        radial-gradient(circle at 20% 14%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 26% 20%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 30% 29%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 24% 38%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 33% 48%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 43% 56%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 49% 67%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 38% 76%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 28% 84%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 54% 24%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 62% 34%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 66% 44%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 58% 58%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 70% 72%, white 0 1px, transparent 1.6px),
+        radial-gradient(circle at 76% 84%, white 0 1px, transparent 1.6px);
+      background-size: 34px 34px;
+      image-rendering: pixelated;
+      animation: contourPulse 3.8s steps(4) infinite;
+    }
+
+    .contours::before {
+      left: 3vw;
+      clip-path: polygon(23% 0, 58% 4%, 81% 22%, 72% 48%, 92% 72%, 54% 100%, 19% 88%, 2% 54%, 13% 25%);
+    }
+
+    .contours::after {
+      right: 2vw;
+      transform: scaleX(-1);
+      clip-path: polygon(8% 10%, 43% 2%, 68% 15%, 93% 35%, 80% 62%, 96% 90%, 61% 100%, 31% 83%, 2% 64%, 16% 38%);
+      animation-delay: 1.1s;
+    }
+
+    .scanlines {
+      z-index: 5;
+      opacity: 0.14;
+      background: repeating-linear-gradient(180deg, transparent 0 3px, rgba(255,255,255,0.9) 3px 4px);
+    }
+
+    .vignette {
+      z-index: 6;
+      background:
+        linear-gradient(90deg, #000 0, transparent 14% 86%, #000 100%),
+        radial-gradient(circle at 50% 50%, transparent 0 42%, rgba(0,0,0,0.78) 100%);
+    }
+
+    .stage {
+      position: relative;
+      z-index: 3;
+      width: min(980px, calc(100vw - 32px));
+      min-height: min(620px, calc(100dvh - 32px));
+      display: grid;
+      grid-template-columns: 1fr;
+      align-items: center;
+      justify-items: center;
+      gap: 0;
+      padding: clamp(20px, 4vw, 52px);
+    }
+
+    .window {
+      background: var(--panel);
+      color: #101010;
+      border: 5px solid;
+      border-color: #fff #080808 #080808 #fff;
+      box-shadow: 10px 12px 0 rgba(0, 0, 0, 0.54);
+    }
+
+    .titlebar {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      color: #fff;
+      background: var(--blue);
+      border-bottom: 4px solid #fff;
+      font-size: clamp(18px, 3vw, 28px);
+      font-weight: 900;
+    }
+
+    .titlebar i {
+      width: 28px;
+      height: 24px;
+      background: var(--panel);
+      border: 3px solid;
+      border-color: #fff #111 #111 #fff;
+    }
+
+    .copy {
+      padding: clamp(18px, 3vw, 32px);
+    }
+
+    .copy h1 {
+      max-width: 620px;
+      margin: 0;
+      font-size: clamp(44px, 8vw, 92px);
+      line-height: 0.9;
+      letter-spacing: -0.08em;
+    }
+
+    .copy p {
+      max-width: 600px;
+      margin: 22px 0 0;
+      color: #222;
+      font: 900 clamp(16px, 2.2vw, 24px) var(--pixel);
+      line-height: 1.45;
+    }
+
+    .cube-wrap {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: min(560px, 92vw);
+      min-height: min(620px, calc(100dvh - 120px));
+      perspective: 900px;
+    }
+
+    .cube-aura {
+      position: absolute;
+      width: 360px;
+      aspect-ratio: 1;
+      background: radial-gradient(circle, rgba(159,252,255,0.34), rgba(14,77,77,0.18) 34%, transparent 68%);
+      filter: blur(3px);
+      animation: auraPulse 2.8s steps(8) infinite;
+    }
+
+    .cube {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      transform-style: preserve-3d;
+      animation: blackBoxSpin 10s steps(80) infinite;
+    }
+
+    .face {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 74% 27%, rgba(255,178,77,0.9) 0 3px, transparent 4px),
+        radial-gradient(circle at 28% 66%, rgba(159,252,255,0.9) 0 3px, transparent 4px),
+        repeating-linear-gradient(90deg, rgba(234,255,255,0.84) 0 2px, transparent 2px 28px),
+        repeating-linear-gradient(0deg, rgba(25,227,214,0.58) 0 2px, transparent 2px 28px),
+        linear-gradient(135deg, rgba(255,255,255,0.14), transparent 22% 72%, rgba(25,227,214,0.08)),
+        rgba(5, 18, 16, 0.52);
+      border: 2px solid rgba(234,255,255,0.72);
+      box-shadow:
+        inset 0 0 0 1px rgba(14,77,77,0.9),
+        inset 0 0 40px rgba(25,227,214,0.22),
+        0 0 18px rgba(159,252,255,0.42);
+      opacity: 0.78;
+      image-rendering: pixelated;
+      backdrop-filter: blur(1px);
+    }
+
+    .face::before {
+      content: "";
+      position: absolute;
+      inset: 12%;
+      background:
+        radial-gradient(circle at 15% 20%, rgba(234,255,255,0.84) 0 2px, transparent 3px),
+        radial-gradient(circle at 42% 58%, rgba(255,178,77,0.78) 0 2px, transparent 3px),
+        radial-gradient(circle at 82% 34%, rgba(127,240,239,0.8) 0 2px, transparent 3px);
+      opacity: 0.62;
+      filter: drop-shadow(0 0 10px #9ffcff);
+      animation: glyphBlink 1.4s steps(3) infinite;
+    }
+
+    .fragment {
+      position: absolute;
+      width: var(--s, 16px);
+      height: var(--s, 16px);
+      background: rgba(8, 28, 25, 0.84);
+      border: 1px solid rgba(159,252,255,0.68);
+      box-shadow: inset 0 0 10px rgba(25,227,214,0.28), 0 0 16px rgba(127,240,239,0.52);
+      transform: translate(var(--x), var(--y)) rotate(var(--r));
+      animation: fragmentOrbit var(--d, 8s) steps(40) infinite;
+    }
+
+    .fragment:nth-of-type(2n) {
+      background: rgba(255,178,77,0.2);
+      border-color: rgba(255,178,77,0.86);
+      box-shadow: inset 0 0 10px rgba(255,178,77,0.28), 0 0 18px rgba(255,178,77,0.42);
+    }
+
+    .front { transform: translateZ(90px); }
+    .back { transform: rotateY(180deg) translateZ(90px); }
+    .right { transform: rotateY(90deg) translateZ(90px); }
+    .left { transform: rotateY(-90deg) translateZ(90px); }
+    .top { transform: rotateX(90deg) translateZ(90px); }
+    .bottom { transform: rotateX(-90deg) translateZ(90px); }
+
+    .shadow {
+      position: absolute;
+      bottom: 70px;
+      width: 210px;
+      height: 32px;
+      background: rgba(0, 0, 0, 0.78);
+      filter: blur(8px);
+      transform: rotateX(72deg);
+      animation: shadowPulse 10s steps(80) infinite;
+    }
+
+    .caption {
+      position: absolute;
+      left: 50%;
+      bottom: 28px;
+      z-index: 4;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.72);
+      font-size: 13px;
+      text-align: center;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    @keyframes blackBoxSpin {
+      0% { transform: translateY(0) rotateX(-16deg) rotateY(0deg) rotateZ(0deg); }
+      30% { transform: translateY(-22px) rotateX(-10deg) rotateY(88deg) rotateZ(2deg); }
+      55% { transform: translateY(-8px) rotateX(-22deg) rotateY(180deg) rotateZ(-2deg); }
+      78% { transform: translateY(-24px) rotateX(-8deg) rotateY(270deg) rotateZ(1deg); }
+      100% { transform: translateY(0) rotateX(-16deg) rotateY(360deg) rotateZ(0deg); }
+    }
+
+    @keyframes starDrift {
+      from { transform: translate3d(0, 0, 0); }
+      to { transform: translate3d(-72px, 36px, 0); }
+    }
+
+    @keyframes matrixFall {
+      from { background-position: 0 0, 0 0; }
+      to { background-position: 54px 120px, 0 240px; }
+    }
+
+    @keyframes contourPulse {
+      0%, 100% { opacity: 0.42; transform: translateY(0); }
+      50% { opacity: 0.95; transform: translateY(-6px); }
+    }
+
+    @keyframes auraPulse {
+      0%, 100% { transform: scale(0.9); opacity: 0.62; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+
+    @keyframes glyphBlink {
+      0%, 48% { opacity: 0.2; }
+      50%, 100% { opacity: 0.8; }
+    }
+
+    @keyframes shadowPulse {
+      0%, 100% { transform: rotateX(72deg) scale(0.84); opacity: 0.48; }
+      50% { transform: rotateX(72deg) scale(1.08); opacity: 0.78; }
+    }
+
+    @keyframes fragmentOrbit {
+      0% { transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(0.82); opacity: 0.42; }
+      50% { transform: translate(calc(var(--x) * -0.78), calc(var(--y) * 0.84)) rotate(calc(var(--r) + 160deg)) scale(1.12); opacity: 1; }
+      100% { transform: translate(var(--x), var(--y)) rotate(calc(var(--r) + 360deg)) scale(0.82); opacity: 0.42; }
+    }
+
+    @media (max-width: 760px) {
+      body { overflow: auto; }
+      .stage {
+        grid-template-columns: 1fr;
+        padding-block: 32px 72px;
+      }
+      .cube-wrap {
+        min-height: 310px;
+      }
+      .cube {
+        width: 140px;
+        height: 140px;
+      }
+      .front { transform: translateZ(70px); }
+      .back { transform: rotateY(180deg) translateZ(70px); }
+      .right { transform: rotateY(90deg) translateZ(70px); }
+      .left { transform: rotateY(-90deg) translateZ(70px); }
+      .top { transform: rotateX(90deg) translateZ(70px); }
+      .bottom { transform: rotateX(-90deg) translateZ(70px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="demo">
+    <div class="pixel-sky"></div>
+    <div class="pixel-rain"></div>
+    <div class="contours"></div>
+    <div class="scanlines"></div>
+    <div class="vignette"></div>
+
+    <section class="stage">
+      <aside class="cube-wrap" aria-label="Animated black box cube">
+        <div class="cube-aura"></div>
+        <div class="shadow"></div>
+        <i class="fragment" style="--x:-180px;--y:-96px;--r:18deg;--s:18px;--d:9s"></i>
+        <i class="fragment" style="--x:168px;--y:-122px;--r:44deg;--s:12px;--d:7s"></i>
+        <i class="fragment" style="--x:198px;--y:84px;--r:12deg;--s:20px;--d:10s"></i>
+        <i class="fragment" style="--x:-146px;--y:126px;--r:66deg;--s:14px;--d:8s"></i>
+        <i class="fragment" style="--x:58px;--y:-190px;--r:30deg;--s:10px;--d:11s"></i>
+        <div class="cube">
+          <div class="face front"></div>
+          <div class="face back"></div>
+          <div class="face right"></div>
+          <div class="face left"></div>
+          <div class="face top"></div>
+          <div class="face bottom"></div>
+        </div>
+      </aside>
+    </section>
+
+    <div class="caption">Standalone visual demo. Not integrated into the game yet.</div>
+  </main>
+</body>
+</html>
