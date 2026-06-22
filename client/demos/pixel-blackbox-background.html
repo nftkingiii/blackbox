@@ -205,7 +205,7 @@
       position: absolute;
       width: 360px;
       aspect-ratio: 1;
-      background: radial-gradient(circle, rgba(159,252,255,0.34), rgba(14,77,77,0.18) 34%, transparent 68%);
+      background: radial-gradient(circle, rgba(180,185,185,0.18), rgba(58,64,64,0.12) 34%, transparent 68%);
       filter: blur(3px);
       animation: auraPulse 2.8s steps(8) infinite;
     }
@@ -224,18 +224,18 @@
       display: grid;
       place-items: center;
       background:
-        radial-gradient(circle at 74% 27%, rgba(255,178,77,0.9) 0 3px, transparent 4px),
-        radial-gradient(circle at 28% 66%, rgba(159,252,255,0.9) 0 3px, transparent 4px),
-        repeating-linear-gradient(90deg, rgba(234,255,255,0.84) 0 2px, transparent 2px 28px),
-        repeating-linear-gradient(0deg, rgba(25,227,214,0.58) 0 2px, transparent 2px 28px),
-        linear-gradient(135deg, rgba(255,255,255,0.14), transparent 22% 72%, rgba(25,227,214,0.08)),
-        rgba(5, 18, 16, 0.52);
-      border: 2px solid rgba(234,255,255,0.72);
+        radial-gradient(circle at 74% 27%, rgba(198,202,198,0.58) 0 2px, transparent 3px),
+        radial-gradient(circle at 28% 66%, rgba(228,231,226,0.62) 0 2px, transparent 3px),
+        repeating-linear-gradient(90deg, rgba(190,194,190,0.46) 0 2px, transparent 2px 28px),
+        repeating-linear-gradient(0deg, rgba(132,138,136,0.42) 0 2px, transparent 2px 28px),
+        linear-gradient(135deg, rgba(255,255,255,0.07), transparent 22% 72%, rgba(255,255,255,0.04)),
+        #050607;
+      border: 2px solid rgba(156,162,158,0.62);
       box-shadow:
-        inset 0 0 0 1px rgba(14,77,77,0.9),
-        inset 0 0 40px rgba(25,227,214,0.22),
-        0 0 18px rgba(159,252,255,0.42);
-      opacity: 0.78;
+        inset 0 0 0 1px rgba(40,43,42,0.95),
+        inset 0 0 42px rgba(0,0,0,0.82),
+        0 0 16px rgba(180,185,185,0.18);
+      opacity: 1;
       image-rendering: pixelated;
       backdrop-filter: blur(1px);
     }
@@ -245,11 +245,11 @@
       position: absolute;
       inset: 12%;
       background:
-        radial-gradient(circle at 15% 20%, rgba(234,255,255,0.84) 0 2px, transparent 3px),
-        radial-gradient(circle at 42% 58%, rgba(255,178,77,0.78) 0 2px, transparent 3px),
-        radial-gradient(circle at 82% 34%, rgba(127,240,239,0.8) 0 2px, transparent 3px);
-      opacity: 0.62;
-      filter: drop-shadow(0 0 10px #9ffcff);
+        radial-gradient(circle at 15% 20%, rgba(236,238,234,0.72) 0 2px, transparent 3px),
+        radial-gradient(circle at 42% 58%, rgba(170,174,170,0.64) 0 2px, transparent 3px),
+        radial-gradient(circle at 82% 34%, rgba(218,222,218,0.62) 0 2px, transparent 3px);
+      opacity: 0.48;
+      filter: drop-shadow(0 0 8px rgba(210,214,210,0.28));
       animation: glyphBlink 1.4s steps(3) infinite;
     }
 
@@ -257,17 +257,17 @@
       position: absolute;
       width: var(--s, 16px);
       height: var(--s, 16px);
-      background: rgba(8, 28, 25, 0.84);
-      border: 1px solid rgba(159,252,255,0.68);
-      box-shadow: inset 0 0 10px rgba(25,227,214,0.28), 0 0 16px rgba(127,240,239,0.52);
+      background: #070808;
+      border: 1px solid rgba(168,174,170,0.58);
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.85), 0 0 14px rgba(180,185,185,0.2);
       transform: translate(var(--x), var(--y)) rotate(var(--r));
       animation: fragmentOrbit var(--d, 8s) steps(40) infinite;
     }
 
     .fragment:nth-of-type(2n) {
-      background: rgba(255,178,77,0.2);
-      border-color: rgba(255,178,77,0.86);
-      box-shadow: inset 0 0 10px rgba(255,178,77,0.28), 0 0 18px rgba(255,178,77,0.42);
+      background: #0b0c0c;
+      border-color: rgba(220,224,218,0.5);
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.86), 0 0 16px rgba(210,214,210,0.18);
     }
 
     .front { transform: translateZ(90px); }
