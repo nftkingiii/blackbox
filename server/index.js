@@ -32,11 +32,11 @@ const server = createServer(async (request, response) => {
     if (url.pathname === "/api/story-packs" && request.method === "GET") return json(response, modeRegistry.listPublicPacks());
     if (url.pathname === "/api/solo-runs" && request.method === "POST") return handleCreateSoloRun(request, response);
     if (url.pathname === "/api/rooms" && request.method === "POST") return handleCreateRoom(request, response);
-    if (url.pathname.startsWith("/api/rooms/") && request.method === "GET") return handleGetRoom(url, response);
+    if (url.pathname.match(/^\/api\/rooms\/[^/]+\/events$/) && request.method === "GET") return handleEvents(url, response);
     if (url.pathname.match(/^\/api\/rooms\/[^/]+\/join$/) && request.method === "POST") return handleJoinRoom(url, request, response);
     if (url.pathname.match(/^\/api\/rooms\/[^/]+\/start$/) && request.method === "POST") return handleStartRound(url, request, response);
     if (url.pathname.match(/^\/api\/rooms\/[^/]+\/guess$/) && request.method === "POST") return handleGuess(url, request, response);
-    if (url.pathname.match(/^\/api\/rooms\/[^/]+\/events$/)) return handleEvents(url, response);
+    if (url.pathname.startsWith("/api/rooms/") && request.method === "GET") return handleGetRoom(url, response);
 
     return serveStatic(url, response);
   } catch (error) {
@@ -61,9 +61,10 @@ async function handleCreateSoloRun(request, response) {
   json(response, { room: sanitizeRoom(result.room), playerId: result.playerId });
 }
 
-function handleGetRoom(url, response) {
+async function handleGetRoom(url, response) {
   const room = getRoomFromUrl(url);
   if (!room) return json(response, { error: "Room not found." }, 404);
+  await roundEngine.reconcile(room);
   json(response, sanitizeRoom(room));
 }
 
@@ -82,6 +83,7 @@ async function handleJoinRoom(url, request, response) {
 async function handleStartRound(url, request, response) {
   const room = getRoomFromUrl(url);
   if (!room) return json(response, { error: "Room not found." }, 404);
+  await roundEngine.reconcile(room);
   const body = await readJson(request);
   if (body.playerId !== room.hostId) return json(response, { error: "Only the host can start rounds." }, 403);
   roundEngine.startRound(room);
@@ -99,9 +101,10 @@ async function handleGuess(url, request, response) {
   }
 }
 
-function handleEvents(url, response) {
+async function handleEvents(url, response) {
   const room = getRoomFromUrl(url);
   if (!room) return json(response, { error: "Room not found." }, 404);
+  await roundEngine.reconcile(room);
 
   response.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -150,7 +153,12 @@ async function serveStatic(url, response) {
 
   try {
     const body = await readFile(filePath);
-    response.writeHead(200, { "Content-Type": mime[extname(filePath)] || "application/octet-stream" });
+    response.writeHead(200, {
+      "Content-Type": mime[extname(filePath)] || "application/octet-stream",
+      "Cache-Control": "no-store, max-age=0",
+      Pragma: "no-cache",
+      Expires: "0"
+    });
     response.end(body);
   } catch {
     response.writeHead(404);

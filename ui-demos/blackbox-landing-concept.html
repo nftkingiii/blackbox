@@ -15,8 +15,8 @@
       --panel: rgba(255, 255, 255, 0.035);
       --panel-strong: rgba(255, 255, 255, 0.07);
       --warning: #d7d7d1;
-      --pixel: "Courier New", "Lucida Console", monospace;
-      --sans: Inter, "Segoe UI", Arial, sans-serif;
+      --pixel: "IBM Plex Mono", "JetBrains Mono", "Geist Mono", "Cascadia Mono", Consolas, monospace;
+      --sans: "Space Grotesk", Outfit, Geist, "Aptos Display", sans-serif;
     }
 
     * { box-sizing: border-box; }
@@ -392,8 +392,8 @@
 
     .case-layout {
       display: grid;
-      grid-template-columns: 0.75fr repeat(3, 1fr);
-      gap: 18px;
+      grid-template-columns: 0.78fr 1.08fr 0.92fr 0.84fr;
+      gap: clamp(14px, 1.7vw, 22px);
       align-items: stretch;
     }
 
@@ -417,50 +417,234 @@
     }
 
     .case-card {
-      min-height: 260px;
+      min-height: 318px;
       padding: 18px;
-      border: 1px solid var(--line);
+      border: 1px solid rgba(218, 222, 218, 0.18);
       background:
-        linear-gradient(180deg, rgba(255,255,255,0.065), rgba(255,255,255,0.018)),
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.014)),
+        repeating-linear-gradient(180deg, transparent 0 12px, rgba(218,222,218,0.035) 12px 13px),
         #050505;
       display: grid;
-      align-content: end;
-      gap: 12px;
+      grid-template-rows: minmax(150px, 1fr) auto auto;
+      align-content: stretch;
+      gap: 14px;
       position: relative;
       overflow: hidden;
+      transition: border-color 220ms cubic-bezier(0.32, 0.72, 0, 1), transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
     }
 
     .case-card::before {
       content: "";
       position: absolute;
-      inset: 18px 18px auto;
-      height: 132px;
+      inset: 0;
+      pointer-events: none;
       background:
-        radial-gradient(circle at 50% 50%, rgba(255,255,255,0.85) 0 2px, transparent 3px) 0 0 / 18px 18px,
-        radial-gradient(circle, rgba(255,255,255,0.18), transparent 64%);
-      opacity: 0.72;
-      mask-image: radial-gradient(circle, #000 0 48%, transparent 64%);
+        linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent),
+        radial-gradient(circle at 18% 20%, rgba(255,255,255,0.12), transparent 28%);
+      opacity: 0.28;
     }
 
-    .case-card:nth-child(3)::before {
-      mask-image: radial-gradient(circle, #000 0 34%, transparent 55%);
-      background:
-        radial-gradient(circle at 50% 48%, rgba(255,255,255,0.92) 0 2px, transparent 3px) 0 0 / 16px 16px;
-      clip-path: polygon(50% 7%, 89% 30%, 78% 80%, 50% 95%, 22% 80%, 11% 30%);
+    .case-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(238, 240, 235, 0.38);
     }
 
-    .case-card:nth-child(4)::before {
-      height: 120px;
+    .case-visual {
+      position: relative;
+      min-height: 150px;
+      border: 1px solid rgba(218, 222, 218, 0.1);
       background:
-        linear-gradient(130deg, transparent 0 42%, rgba(255,255,255,0.9) 43% 47%, transparent 48%),
-        repeating-linear-gradient(175deg, transparent 0 16px, rgba(255,255,255,0.55) 16px 20px, transparent 20px 34px);
-      opacity: 0.82;
-      mask-image: none;
+        radial-gradient(circle at 50% 0%, rgba(255,255,255,0.08), transparent 44%),
+        #080808;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .case-visual::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(180deg, transparent 0 9px, rgba(255,255,255,0.05) 9px 10px);
+      opacity: 0.42;
+      mix-blend-mode: screen;
+      pointer-events: none;
+    }
+
+    .seed-visual {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px 7px;
+      align-content: center;
+      padding: 14px 12px;
+    }
+
+    .seed-visual span {
+      min-width: 0;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0 7px;
+      border: 1px solid rgba(218, 222, 218, 0.12);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.018)),
+        #111;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+      font: 800 clamp(8px, 0.72vw, 10px) var(--pixel);
+      letter-spacing: 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .seed-visual b {
+      flex: 0 0 auto;
+      color: rgba(244,244,239,0.38);
+      font-weight: 900;
+    }
+
+    .seed-visual i {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      color: rgba(244,244,239,0.86);
+      font-style: normal;
+      text-overflow: clip;
+      text-shadow: 2px 0 rgba(130,130,126,0.34), -2px 0 rgba(255,255,255,0.12);
+    }
+
+    .shadow-visual {
+      display: grid;
+      place-items: end center;
+      padding-top: 12px;
+    }
+
+    .shadow-person {
+      position: relative;
+      width: 116px;
+      height: 136px;
+      filter: drop-shadow(0 0 18px rgba(220,224,218,0.12));
+    }
+
+    .shadow-person::before,
+    .shadow-person::after,
+    .shadow-person span,
+    .shadow-person b,
+    .shadow-person i {
+      content: "";
+      position: absolute;
+      display: block;
+    }
+
+    .shadow-person::before {
+      left: 16px;
+      top: 28px;
+      width: 84px;
+      height: 74px;
+      border-radius: 38% 38% 46% 46%;
+      background:
+        repeating-linear-gradient(82deg, rgba(220,224,218,0.17) 0 2px, transparent 2px 9px),
+        #101010;
+      border: 1px solid rgba(218,222,218,0.14);
+    }
+
+    .shadow-person::after {
+      left: -2px;
+      top: 30px;
+      width: 120px;
+      height: 17px;
+      border-radius: 50%;
+      background: linear-gradient(90deg, transparent, #161616 14% 86%, transparent);
+      border-bottom: 1px solid rgba(230,232,226,0.24);
+    }
+
+    .shadow-person span {
+      left: 35px;
+      top: 2px;
+      width: 46px;
+      height: 42px;
+      border-radius: 13px 13px 5px 5px;
+      background:
+        repeating-linear-gradient(88deg, rgba(220,224,218,0.2) 0 2px, transparent 2px 8px),
+        #121212;
+      border: 1px solid rgba(218,222,218,0.18);
+    }
+
+    .shadow-person b {
+      left: 28px;
+      bottom: 0;
+      width: 62px;
+      height: 62px;
+      border-radius: 45% 45% 12px 12px;
+      background:
+        repeating-linear-gradient(76deg, rgba(220,224,218,0.22) 0 2px, transparent 2px 10px),
+        #0c0c0c;
+      border: 1px solid rgba(218,222,218,0.12);
+    }
+
+    .shadow-person i {
+      left: 49px;
+      top: 70px;
+      width: 20px;
+      height: 38px;
+      background: #050505;
+      clip-path: polygon(50% 0, 100% 100%, 0 100%);
+      opacity: 0.74;
+    }
+
+    .rug-visual {
+      padding: 18px;
+    }
+
+    .rug-chart {
+      position: relative;
+      height: 100%;
+      background:
+        linear-gradient(90deg, rgba(218,222,218,0.06) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(218,222,218,0.06) 1px, transparent 1px);
+      background-size: 38px 38px;
+    }
+
+    .rug-chart::before {
+      content: "";
+      position: absolute;
+      left: 5%;
+      right: 10%;
+      top: 26%;
+      height: 58%;
+      background:
+        linear-gradient(110deg, transparent 0 9%, rgba(210,214,210,0.56) 9.4% 10.4%, transparent 10.8%),
+        linear-gradient(148deg, transparent 0 18%, rgba(170,174,170,0.62) 18.4% 19.6%, transparent 20%),
+        linear-gradient(124deg, transparent 0 34%, rgba(220,224,218,0.72) 34.4% 35.8%, transparent 36.2%),
+        linear-gradient(68deg, transparent 0 52%, rgba(190,194,190,0.66) 52.4% 53.8%, transparent 54.2%),
+        linear-gradient(92deg, transparent 0 75%, rgba(230,232,226,0.86) 75.3% 77.4%, transparent 77.8%);
+      clip-path: polygon(0 48%, 18% 39%, 35% 12%, 53% 24%, 72% 42%, 82% 60%, 86% 96%, 100% 96%, 100% 100%, 0 100%);
+      filter: drop-shadow(0 0 12px rgba(218,222,218,0.18));
+    }
+
+    .rug-chart span {
+      position: absolute;
+      bottom: var(--b);
+      left: var(--x);
+      width: 8px;
+      height: var(--h);
+      background: rgba(218,222,218,0.78);
+      box-shadow: 0 0 12px rgba(218,222,218,0.16);
+    }
+
+    .rug-chart span::before {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: -18px;
+      width: 2px;
+      height: calc(var(--h) + 34px);
+      background: rgba(160,164,160,0.5);
     }
 
     .case-card h3 {
       position: relative;
       margin: 0;
+      align-self: end;
       font: 800 14px var(--pixel);
       letter-spacing: 0.2em;
       text-transform: uppercase;
@@ -468,7 +652,6 @@
 
     .case-card p {
       position: relative;
-      min-height: 40px;
       margin: 0;
       color: var(--muted);
       font-size: 12px;
@@ -633,15 +816,39 @@
           <h2>Many Mysteries</h2>
           <p>Each mode is a sealed room: clues arrive, symbols crack, and the fastest correct guess climbs the board.</p>
         </div>
-        <article class="case-card">
+        <article class="case-card seed-case">
+          <div class="case-visual seed-visual" aria-hidden="true">
+            <span><b>01.</b><i>ac*e55</i></span>
+            <span><b>02.</b><i>gl0_w</i></span>
+            <span><b>03.</b><i>v3lv_t</i></span>
+            <span><b>04.</b><i>p1p#</i></span>
+            <span><b>05.</b><i>d1v!de</i></span>
+            <span><b>06.</b><i>cl_rk</i></span>
+            <span><b>07.</b><i>s0l_r</i></span>
+            <span><b>08.</b><i>sw0rd</i></span>
+            <span><b>09.</b><i>m0v1e</i></span>
+          </div>
           <h3>Seed Phrase</h3>
           <p>Recover the missing word before the vault locks.</p>
         </article>
-        <article class="case-card">
+        <article class="case-card shadow-case">
+          <div class="case-visual shadow-visual" aria-hidden="true">
+            <div class="shadow-person"><span></span><b></b><i></i></div>
+          </div>
           <h3>The One That Got Away</h3>
           <p>Wrong messages point toward a hidden identity.</p>
         </article>
-        <article class="case-card">
+        <article class="case-card rug-case">
+          <div class="case-visual rug-visual" aria-hidden="true">
+            <div class="rug-chart">
+              <span style="--x:8%;--b:34%;--h:31px"></span>
+              <span style="--x:22%;--b:42%;--h:42px"></span>
+              <span style="--x:38%;--b:56%;--h:50px"></span>
+              <span style="--x:54%;--b:45%;--h:36px"></span>
+              <span style="--x:70%;--b:31%;--h:46px"></span>
+              <span style="--x:84%;--b:4%;--h:112px"></span>
+            </div>
+          </div>
           <h3>The Rug</h3>
           <p>Decode the fake ticker before the chart dies.</p>
         </article>

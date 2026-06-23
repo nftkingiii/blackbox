@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="BlackBox cube">
+  <rect width="128" height="128" fill="#020303"/>
+  <g opacity=".42" stroke="#9aa0a0" stroke-width="1">
+    <path d="M0 18h128M0 36h128M0 54h128M0 72h128M0 90h128M0 108h128"/>
+    <path d="M18 0v128M36 0v128M54 0v128M72 0v128M90 0v128M108 0v128"/>
+  </g>
+  <g fill="#f3f3ee" opacity=".9">
+    <circle cx="18" cy="18" r="2.2"/><circle cx="36" cy="36" r="2.2"/><circle cx="54" cy="54" r="2.2"/><circle cx="72" cy="72" r="2.2"/><circle cx="90" cy="90" r="2.2"/><circle cx="108" cy="108" r="2.2"/>
+    <circle cx="108" cy="18" r="2.2"/><circle cx="90" cy="36" r="2.2"/><circle cx="72" cy="54" r="2.2"/><circle cx="54" cy="72" r="2.2"/><circle cx="36" cy="90" r="2.2"/><circle cx="18" cy="108" r="2.2"/>
+  </g>
+  <g fill="#090a0a" stroke="#c8cccc" stroke-width="3" stroke-linejoin="round">
+    <path d="M33 47 65 29l31 18-31 18z"/>
+    <path d="M33 47v37l32 18V65z"/>
+    <path d="M96 47v37l-31 18V65z"/>
+  </g>
+  <g stroke="#8f9696" stroke-width="1.6" opacity=".86">
+    <path d="M42 52h44M38 63h54M38 75h54M42 87h44"/>
+    <path d="M47 40v51M58 34v63M70 33v63M82 40v51"/>
+    <path d="M33 47 65 65l31-18M65 65v37"/>
+  </g>
+  <path d="M36 49 65 33l28 16" fill="none" stroke="#ffffff" stroke-width="2" opacity=".55"/>
+</svg>

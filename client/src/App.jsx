@@ -1,10 +1,10 @@
 import { api, openRoomStream } from "./socket.js";
-import { setPlayerId, store } from "./store.js";
+import { saveProfile, setPlayerId, store } from "./store.js";
 
 const app = document.querySelector("#app");
 
 const state = {
-  route: "home",
+  route: "landing",
   packs: [],
   selectedPackId: "",
   room: null,
@@ -14,7 +14,13 @@ const state = {
   activeClueKey: "",
   clueDisplayText: "",
   clueTargetText: "",
-  pendingClue: null
+  pendingClue: null,
+  showWalletSecret: false,
+  formDrafts: {
+    soloForm: { roundTimeSec: "60" },
+    hostForm: { roundTimeSec: "60" },
+    joinForm: {}
+  }
 };
 
 let gameTick = null;
@@ -27,16 +33,19 @@ init();
 
 async function init() {
   window.addEventListener("hashchange", syncRoute);
+  document.addEventListener("pointerdown", handleControlPointer);
   document.addEventListener("click", handleClick);
+  document.addEventListener("input", handleFieldEdit);
+  document.addEventListener("change", handleFieldEdit);
   document.addEventListener("submit", handleSubmit);
   syncRoute();
   await loadPacks();
 }
 
 function syncRoute() {
-  const route = window.location.hash.replace("#", "") || "home";
-  state.route = ["home", "solo", "host", "join", "lobby", "game", "packs"].includes(route) ? route : "home";
-  render();
+  const route = window.location.hash.replace("#", "") || "landing";
+  state.route = ["landing", "home", "solo", "host", "join", "lobby", "game", "packs"].includes(route) ? route : "landing";
+  render(true);
 }
 
 async function loadPacks() {
@@ -49,11 +58,15 @@ async function loadPacks() {
   }
 }
 
-function render() {
+function render(force = false) {
   if (!app) return;
+  if (!force && isSetupControlFocused()) return;
+  document.body.dataset.route = state.route;
+  app.className = `app-shell route-${state.route}`;
   syncGameTick();
   app.innerHTML = `
-    ${renderTopbar()}
+    ${state.route === "landing" ? "" : renderTopbar()}
+    ${state.route === "landing" ? renderLanding() : ""}
     ${state.route === "home" ? renderHome() : ""}
     ${state.route === "solo" ? renderSoloSetup() : ""}
     ${state.route === "host" ? renderHostSetup() : ""}
@@ -67,11 +80,15 @@ function render() {
   syncClueAnimation();
 }
 
+
+function isSetupControlFocused() {
+  return Boolean(document.activeElement?.matches?.("#soloForm input, #soloForm select, #hostForm input, #hostForm select, #joinForm input, #joinForm select"));
+}
 function renderTopbar() {
   return `
     <header class="topbar">
       <button class="brand-button" data-route="home" aria-label="Go home">
-        <span class="brand-mark">BB</span>
+        <span class="brand-mark cube-brand" aria-hidden="true"><img src="./assets/blackbox-cube.svg" alt="" /></span>
         <span>
           <span class="eyebrow">BlackBox</span>
           <strong>Story Guessing Engine</strong>
@@ -87,39 +104,60 @@ function renderTopbar() {
   `;
 }
 
+function renderLanding() {
+  return `
+    <main class="landing-screen">
+      <div class="pixel-sky" aria-hidden="true"></div>
+      <div class="contours" aria-hidden="true"></div>
+      <div class="scanlines" aria-hidden="true"></div>
+      <nav class="landing-nav" aria-label="Landing navigation">
+        <span class="landing-brand"><span class="landing-brand-mark"></span>BLACK BOX</span>
+        <button class="landing-connect" type="button" data-enter-home>ENTER</button>
+      </nav>
+      <section class="landing-hero">
+        <div class="landing-copy">
+          <p class="landing-kicker">Guess. Reveal. Survive.</p>
+          <h1>BLACK<br />BOX</h1>
+          <p class="landing-tagline">Decode the signal before the clock locks.</p>
+          <button class="landing-action" type="button" data-enter-home>Enter BlackBox</button>
+        </div>
+        <div class="landing-cube-field" aria-hidden="true">
+          <span class="cube-glow"></span>
+          ${renderCubeVisual("landing-cube")}
+          <span class="landing-orbit orbit-one"></span>
+          <span class="landing-orbit orbit-two"></span>
+        </div>
+
+      </section>
+    </main>
+  `;
+}
+
 function renderHome() {
   return `
     <main class="home-screen">
       <section class="desktop-grid reveal">
-        <div class="window hero-window">
-          <div class="titlebar"><span>BlackBox.exe</span><button aria-hidden="true">_</button></div>
-          <div class="window-body hero-copy">
-          <p class="eyebrow">Mystery OS / Server authoritative</p>
-          <h1>Crack the case before the clock locks.</h1>
-          <p>
-            BlackBox is a backend-first multiplayer mystery engine with solo runs, private rooms,
-            server-side answers, timed clues, scoring, and 0G-ready proof records.
-          </p>
-          <div class="hero-actions">
-            <button class="primary-btn" data-solo-now>Solo Play</button>
-            <button class="secondary-btn" data-route="host">Host Multiplayer</button>
-          </div>
+        <div class="home-cube-stage" aria-hidden="true">
+          <span class="cube-glow"></span>
+          ${renderCubeVisual("home-cube")}
         </div>
-        </div>
-
-        <aside class="window case-window" aria-label="Featured story pack">
-          <div class="titlebar"><span>Folder: Featured Case</span><button aria-hidden="true">□</button></div>
-          <div class="window-body case-box">
-            <span class="case-badge">Official Pack</span>
-            <h2>The Missing Seed Word</h2>
-            <p>A glitchy hacker is missing one recovery phrase word. The wallet locks when time hits zero.</p>
-            <div class="case-controls">
-              <span>01</span>
-              <span>02</span>
-              <span>03</span>
+        <div class="window hero-window home-hero-window">
+          <div class="titlebar"><span>BlackBox.exe</span><span class="window-control" aria-hidden="true">_</span></div>
+          <div class="window-body hero-copy home-hero-copy">
+            <p class="eyebrow">Mystery OS / Server authoritative</p>
+            <h1>Crack the case before the clock locks.</h1>
+            <p>
+              BlackBox is a backend-first multiplayer mystery engine with solo runs, private rooms,
+              server-side answers, timed clues, scoring, wallet profiles, Cubes, and 0G-ready proof records.
+            </p>
+            <div class="hero-actions">
+              <button class="primary-btn" data-solo-now>Solo Play</button>
+              <button class="secondary-btn" data-route="host">Host Multiplayer</button>
+              <button class="secondary-btn" data-route="packs">Case Library</button>
             </div>
+            ${renderWalletPanel()}
           </div>
-        </aside>
+        </div>
       </section>
 
       <section class="mode-strip" aria-label="Game modes">
@@ -128,26 +166,96 @@ function renderHome() {
           <strong>Instant run</strong>
           <p>Start immediately without waiting for another player.</p>
         </div></article>
-        <article class="window"><div class="titlebar"><span>Rooms</span></div><div class="window-body">
-          <span>Rooms</span>
-          <strong>Private code</strong>
-          <p>Invite friends and let the server decide every result.</p>
+        <article class="window"><div class="titlebar"><span>Cubes</span></div><div class="window-body">
+          <span>Cubes</span>
+          <strong>100 bonus</strong>
+          <p>Generate a local wallet profile and receive starter Cubes for game actions.</p>
         </div></article>
-        <article class="window"><div class="titlebar"><span>Stories</span></div><div class="window-body">
-          <span>Stories</span>
-          <strong>Code-owned packs</strong>
-          <p>Add stories in the backend and ship them as updates.</p>
+        <article class="window"><div class="titlebar"><span>0G Proofs</span></div><div class="window-body">
+          <span>0G</span>
+          <strong>Verifiable rounds</strong>
+          <p>Round proofs expose storage URIs, transaction hashes, and explorer links when available.</p>
         </div></article>
       </section>
     </main>
   `;
 }
 
+function renderCubeVisual(extraClass = "") {
+  return `
+    <span class="cube-wrap ${extraClass}" aria-hidden="true">
+      <span class="cube-aura"></span>
+      <span class="cube-shadow"></span>
+      <span class="fragment" style="--x:-180px;--y:-96px;--r:18deg;--s:18px;--d:9s"></span>
+      <span class="fragment" style="--x:168px;--y:-122px;--r:44deg;--s:12px;--d:7s"></span>
+      <span class="fragment" style="--x:198px;--y:84px;--r:12deg;--s:20px;--d:10s"></span>
+      <span class="fragment" style="--x:-146px;--y:126px;--r:66deg;--s:14px;--d:8s"></span>
+      <span class="fragment" style="--x:58px;--y:-190px;--r:30deg;--s:10px;--d:11s"></span>
+      <span class="blackbox-cube">
+        <span class="cube-face cube-front"></span>
+        <span class="cube-face cube-back"></span>
+        <span class="cube-face cube-right"></span>
+        <span class="cube-face cube-left"></span>
+        <span class="cube-face cube-top"></span>
+        <span class="cube-face cube-bottom"></span>
+      </span>
+    </span>
+  `;
+}
+
+function renderWalletPanel() {
+  const profile = store.profile;
+  const hasWallet = Boolean(profile.walletAddress);
+  return `
+    <section class="wallet-panel" aria-label="Wallet and Cubes">
+      <div>
+        <p class="eyebrow">Wallet / Cubes</p>
+        <h2>${hasWallet ? "BlackBox wallet ready." : "Generate a test profile."}</h2>
+        <p>${hasWallet ? "Your local wallet profile is ready for future 0G testnet actions. Cubes are in-game credits, not an on-chain token." : "Create a browser-local wallet and receive a 100 Cubes welcome bonus for gameplay utilities."}</p>
+      </div>
+      <div class="wallet-card">
+        <span>Cubes</span>
+        <strong>${escapeHtml(profile.cubes || 0)}</strong>
+        ${hasWallet ? `<code>${escapeHtml(shortAddress(profile.walletAddress))}</code>` : `<em>No wallet yet</em>`}
+      </div>
+      <div class="wallet-actions">
+        ${hasWallet ? `<button class="secondary-btn" type="button" data-copy-proof="${escapeHtml(profile.walletAddress)}">Copy Address</button>` : `<button class="primary-btn" type="button" data-generate-wallet>Generate Wallet + 100 Cubes</button>`}
+        ${hasWallet ? `<button class="secondary-btn" type="button" data-toggle-wallet-secret>${state.showWalletSecret ? "Hide Secret" : "Show Secret"}</button>` : ""}
+      </div>
+      ${hasWallet && state.showWalletSecret ? `
+        <div class="wallet-secret">
+          <span>Private key. Keep this secret.</span>
+          <code>${escapeHtml(profile.walletPrivateKey)}</code>
+          <button class="secondary-btn" type="button" data-copy-proof="${escapeHtml(profile.walletPrivateKey)}">Copy Private Key</button>
+        </div>
+      ` : ""}
+    </section>
+  `;
+}
+
+function renderProofPanel(zeroG) {
+  if (!zeroG) return "";
+  const isRealProof = zeroG.provider === "0g-storage";
+  const label = isRealProof ? "0G proof saved" : "Local proof saved";
+  return `
+    <div class="proof-panel">
+      <span>${escapeHtml(label)}</span>
+      <code>${escapeHtml(zeroG.uri || zeroG.id || "proof pending")}</code>
+      <div class="proof-actions">
+        ${zeroG.explorerUrl ? `<a class="proof-link" href="${escapeHtml(zeroG.explorerUrl)}" target="_blank" rel="noreferrer">View Transaction</a>` : ""}
+        ${zeroG.txHash ? `<button class="secondary-btn" type="button" data-copy-proof="${escapeHtml(zeroG.txHash)}">Copy Tx</button>` : ""}
+        ${zeroG.uri ? `<button class="secondary-btn" type="button" data-copy-proof="${escapeHtml(zeroG.uri)}">Copy URI</button>` : ""}
+      </div>
+      ${zeroG.warning ? `<small>${escapeHtml(zeroG.warning)}</small>` : ""}
+      ${zeroG.error ? `<small>${escapeHtml(zeroG.error)}</small>` : ""}
+    </div>
+  `;
+}
 function renderSoloSetup() {
   return `
     <main class="setup-screen">
       <section class="window setup-card">
-        <div class="titlebar"><span>SoloPlay.wnd</span><button aria-hidden="true">□</button></div>
+        <div class="titlebar"><span>SoloPlay.wnd</span><span class="window-control" aria-hidden="true">[]</span></div>
         <div class="window-body">
         <p class="eyebrow">Solo run with backend bots</p>
         <h1>Pick a case and start now.</h1>
@@ -155,7 +263,7 @@ function renderSoloSetup() {
           ${renderNameField("name", "Player name", "Detective")}
           ${renderPackSelect()}
           ${renderTimerSelect()}
-          <button class="primary-btn" type="submit">${state.loading ? "Starting..." : "Start Solo Play"}</button>
+          <button class="primary-btn" type="button" data-submit-setup="soloForm">${state.loading ? "Starting..." : "Start Solo Play"}</button>
         </form>
         </div>
       </section>
@@ -167,7 +275,7 @@ function renderHostSetup() {
   return `
     <main class="setup-screen">
       <section class="window setup-card">
-        <div class="titlebar"><span>CreateRoom.wnd</span><button aria-hidden="true">□</button></div>
+        <div class="titlebar"><span>CreateRoom.wnd</span><span class="window-control" aria-hidden="true">[]</span></div>
         <div class="window-body">
         <p class="eyebrow">Multiplayer</p>
         <h1>Create a private room.</h1>
@@ -175,7 +283,7 @@ function renderHostSetup() {
           ${renderNameField("name", "Host name", "Room Host")}
           ${renderPackSelect()}
           ${renderTimerSelect()}
-          <button class="primary-btn" type="submit">${state.loading ? "Creating..." : "Create Room"}</button>
+          <button class="primary-btn" type="button" data-submit-setup="hostForm">${state.loading ? "Creating..." : "Create Room"}</button>
         </form>
         </div>
       </section>
@@ -187,7 +295,7 @@ function renderJoinSetup() {
   return `
     <main class="setup-screen">
       <section class="window setup-card compact">
-        <div class="titlebar"><span>JoinRoom.wnd</span><button aria-hidden="true">□</button></div>
+        <div class="titlebar"><span>JoinRoom.wnd</span><span class="window-control" aria-hidden="true">[]</span></div>
         <div class="window-body">
         <p class="eyebrow">Join room</p>
         <h1>Enter the room code.</h1>
@@ -197,7 +305,7 @@ function renderJoinSetup() {
             <input name="code" required maxlength="4" autocomplete="off" placeholder="X7K2" />
           </label>
           ${renderNameField("name", "Player name", "Guest")}
-          <button class="primary-btn" type="submit">${state.loading ? "Joining..." : "Join Room"}</button>
+          <button class="primary-btn" type="button" data-submit-setup="joinForm">${state.loading ? "Joining..." : "Join Room"}</button>
         </form>
         </div>
       </section>
@@ -215,7 +323,7 @@ function renderLobby() {
   return `
     <main class="lobby-screen">
       <section class="window lobby-card">
-        <div class="titlebar"><span>Lobby: ${escapeHtml(room.code)}</span><button aria-hidden="true">□</button></div>
+        <div class="titlebar"><span>Lobby: ${escapeHtml(room.code)}</span><span class="window-control" aria-hidden="true">[]</span></div>
         <div class="window-body lobby-layout">
         <div>
           <p class="eyebrow">${room.settings.soloMode ? "Solo run" : "Waiting room"}</p>
@@ -232,7 +340,7 @@ function renderLobby() {
         <div class="player-list">
           ${room.players.map((player) => `<span>${escapeHtml(player.name)}${player.bot ? " <em>BOT</em>" : ""} <b>${player.score}</b></span>`).join("")}
         </div>
-        ${isHost ? `<button class="primary-btn" data-start-round>Start Round</button>` : `<p class="muted">Waiting for the host to start the round.</p>`}
+        ${isHost ? `<button class="primary-btn" type="button" data-start-round>Start Round</button>` : `<p class="muted">Waiting for the host to start the round.</p>`}
         </div>
         </div>
       </section>
@@ -260,10 +368,12 @@ function renderGame() {
 
   if (room.phase === "GAME_OVER") return renderGameOver(room);
 
+  const windowTitle = room.settings.soloMode ? "BLACKBOX.EXE - SOLO RUN" : `BLACKBOX.EXE - ${room.code}`;
+
   return `
     <main class="game-screen">
       <section class="window game-window">
-        <div class="titlebar"><span>BLACKBOX.EXE - ${escapeHtml(room.code)}</span><button aria-hidden="true">_</button></div>
+        <div class="titlebar"><span>${escapeHtml(windowTitle)}</span><span class="window-control" aria-hidden="true">_</span></div>
         <div class="window-body game-scene">
         <div class="game-header">
           <div>
@@ -296,7 +406,7 @@ function renderClueSlideshow(clue, index, clueKey, clueText) {
   return `
     <div class="clue-grid">
       <article class="window clue-panel">
-        <div class="titlebar"><span>Clue ${index + 1}</span><button aria-hidden="true">_</button></div>
+        <div class="titlebar"><span>Clue ${index + 1}</span><span class="window-control" aria-hidden="true">_</span></div>
         <div class="window-body">
           <span>${escapeHtml(clue?.type || "text")}</span>
           <div class="terminal-clue">
@@ -323,7 +433,7 @@ function renderPacksPage() {
             <span>${escapeHtml(pack.modeId)}</span>
             <h2>${escapeHtml(pack.title)}</h2>
             <p>${escapeHtml(pack.intro)}</p>
-            <button class="secondary-btn" data-pack-id="${escapeHtml(pack.id)}">Use Pack</button>
+            <button class="secondary-btn" type="button" data-pack-id="${escapeHtml(pack.id)}">Use Pack</button>
             </div>
           </article>
         `).join("")}
@@ -337,7 +447,7 @@ function renderGuessForm(guessed) {
   return `
     <form id="guessForm" class="guess-form">
       <input name="guess" required autocomplete="off" placeholder="Type your guess" aria-label="Guess" />
-      <button class="primary-btn" type="submit">Guess</button>
+      <button class="primary-btn" type="button" data-submit-guess>Guess</button>
     </form>
   `;
 }
@@ -358,8 +468,8 @@ function renderReveal(result, zeroG) {
       <div class="score-list">
         ${scores.map((score, index) => `<span>${index + 1}. ${escapeHtml(score.name)} <b>${score.score}</b></span>`).join("")}
       </div>
-      ${zeroG ? `<small>${escapeHtml(zeroG.uri)}</small>` : ""}
-      ${isFinal ? "" : `<button class="secondary-btn" data-start-round>Next Round</button>`}
+      ${renderProofPanel(zeroG)}
+      ${isFinal ? "" : `<button class="secondary-btn" type="button" data-start-round>Next Round</button>`}
     </div>
   `;
 }
@@ -369,7 +479,7 @@ function renderGameOver(room) {
   return `
     <main class="game-screen">
       <section class="window game-over-window">
-        <div class="titlebar"><span>GameOver.wnd</span><button aria-hidden="true">□</button></div>
+        <div class="titlebar"><span>GameOver.wnd</span><span class="window-control" aria-hidden="true">[]</span></div>
         <div class="window-body">
           <p class="eyebrow">Final standings</p>
           <h1>${escapeHtml(room.winner?.name || scores[0]?.name || "No winner")} cracked the box.</h1>
@@ -385,44 +495,52 @@ function renderGameOver(room) {
 }
 
 function renderNameField(name, label, placeholder) {
+  const value = getDraftValue(name);
   return `
     <label>
       ${label}
-      <input name="${name}" required autocomplete="off" placeholder="${placeholder}" />
+      <input name="${name}" required autocomplete="off" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(value)}" />
     </label>
   `;
 }
 
 function renderPackSelect() {
+  const selectedPackId = getDraftValue("packId", state.selectedPackId || state.packs[0]?.id || "__random__");
   return `
     <label>
       Story pack
       <select name="packId">
-        <option value="__random__">Random testing pack</option>
-        ${state.packs.map((pack) => `<option value="${escapeHtml(pack.id)}" ${pack.id === state.selectedPackId ? "selected" : ""}>${escapeHtml(pack.title)}</option>`).join("")}
+        <option value="__random__" ${selectedPackId === "__random__" ? "selected" : ""}>Random testing pack</option>
+        ${state.packs.map((pack) => `<option value="${escapeHtml(pack.id)}" ${pack.id === selectedPackId ? "selected" : ""}>${escapeHtml(pack.title)}</option>`).join("")}
       </select>
     </label>
   `;
 }
 
 function renderTimerSelect() {
+  const roundTimeSec = getDraftValue("roundTimeSec", "60");
   return `
     <label>
       Round time
       <select name="roundTimeSec">
-        <option value="45">45 seconds</option>
-        <option value="60" selected>60 seconds</option>
-        <option value="75">75 seconds</option>
+        <option value="45" ${roundTimeSec === "45" ? "selected" : ""}>45 seconds</option>
+        <option value="60" ${roundTimeSec === "60" ? "selected" : ""}>60 seconds</option>
+        <option value="75" ${roundTimeSec === "75" ? "selected" : ""}>75 seconds</option>
       </select>
     </label>
   `;
+}
+
+function getDraftValue(name, fallback = "") {
+  const formId = state.route === "host" ? "hostForm" : state.route === "join" ? "joinForm" : "soloForm";
+  return state.formDrafts[formId]?.[name] ?? fallback;
 }
 
 function renderEmptyRoute(title, body) {
   return `
     <main class="setup-screen">
       <section class="window setup-card compact">
-        <div class="titlebar"><span>Message.wnd</span><button aria-hidden="true">□</button></div>
+        <div class="titlebar"><span>Message.wnd</span><span class="window-control" aria-hidden="true">[]</span></div>
         <div class="window-body">
         <p class="eyebrow">BlackBox</p>
         <h1>${escapeHtml(title)}</h1>
@@ -435,27 +553,162 @@ function renderEmptyRoute(title, body) {
 }
 
 async function handleClick(event) {
-  const routeTarget = event.target.closest("[data-route]");
-  if (routeTarget) {
-    navigate(routeTarget.dataset.route);
+  const button = event.target.closest?.("button");
+  if (!button) {
+    if (event.target.closest?.("input, select, textarea, option, label")) return;
     return;
   }
 
-  const packTarget = event.target.closest("[data-pack-id]");
-  if (packTarget) {
-    state.selectedPackId = packTarget.dataset.packId;
+  if (button.hasAttribute("data-enter-home")) {
+    navigate("home");
+    return;
+  }
+
+  if (button.hasAttribute("data-generate-wallet")) {
+    await generateWalletProfile();
+    return;
+  }
+
+  if (button.hasAttribute("data-toggle-wallet-secret")) {
+    state.showWalletSecret = !state.showWalletSecret;
+    render(true);
+    return;
+  }
+
+  if (button.dataset.copyProof) {
+    await copyText(button.dataset.copyProof);
+    return;
+  }
+
+  if (button.dataset.submitSetup) {
+    await submitSetupForm(button.dataset.submitSetup);
+    return;
+  }
+
+  if (button.hasAttribute("data-submit-guess")) {
+    await submitGuessForm();
+    return;
+  }
+
+  if (button.dataset.packId) {
+    state.selectedPackId = button.dataset.packId;
     navigate("solo");
     return;
   }
 
-  if (event.target.closest("[data-solo-now]")) {
+  if (button.hasAttribute("data-solo-now")) {
     await startSoloRun({ name: "Solo Player", packId: state.selectedPackId, roundTimeSec: 60 });
     return;
   }
 
-  if (event.target.closest("[data-start-round]")) {
+  if (button.hasAttribute("data-start-round")) {
     await startRound();
+    return;
   }
+
+  if (button.dataset.route) {
+    navigate(button.dataset.route);
+  }
+}
+
+async function generateWalletProfile() {
+  if (store.profile.walletAddress) return;
+  await withLoading(async () => {
+    const ethers = await loadEthers();
+    const wallet = ethers.Wallet.createRandom();
+    saveProfile({
+      walletAddress: wallet.address,
+      walletPrivateKey: wallet.privateKey,
+      walletMnemonic: wallet.mnemonic?.phrase || "",
+      cubes: 100,
+      walletCreatedAt: new Date().toISOString()
+    });
+    setNotice("Wallet generated. 100 Cubes added.");
+  });
+}
+
+async function loadEthers() {
+  if (window.ethers?.Wallet) return window.ethers;
+  await new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-ethers-vendor]');
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "./vendor/ethers.umd.min.js";
+    script.async = true;
+    script.dataset.ethersVendor = "true";
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Unable to load local wallet library."));
+    document.head.appendChild(script);
+  });
+  if (!window.ethers?.Wallet) throw new Error("Wallet library loaded without Wallet support.");
+  return window.ethers;
+}
+
+async function copyText(value) {
+  if (!value) return;
+  try {
+    await navigator.clipboard.writeText(value);
+    setNotice("Copied.");
+  } catch {
+    setError("Clipboard copy failed.");
+  }
+}
+
+function shortAddress(value) {
+  const text = String(value || "");
+  return text.length > 14 ? `${text.slice(0, 6)}...${text.slice(-4)}` : text;
+}
+async function submitGuessForm() {
+  const form = document.getElementById("guessForm");
+  if (!form) return;
+
+  const guess = new FormData(form).get("guess");
+  await submitGuess(guess);
+  form.reset();
+}
+
+async function submitSetupForm(formId) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+
+  const body = Object.fromEntries(new FormData(form));
+  if (formId === "soloForm") {
+    await startSoloRun(body);
+    return;
+  }
+  if (formId === "hostForm") {
+    await createRoom(body);
+    return;
+  }
+  if (formId === "joinForm") {
+    await joinRoom(body);
+  }
+}
+
+function handleFieldEdit(event) {
+  const field = event.target;
+  if (!field?.matches?.("input[name], select[name]")) return;
+
+  const form = field.closest("form");
+  if (!form?.id || !state.formDrafts[form.id]) return;
+
+  state.formDrafts[form.id][field.name] = field.value;
+  if (field.name === "packId") state.selectedPackId = field.value;
+}
+
+function handleControlPointer(event) {
+  const field = event.target.closest("input, select, textarea");
+  if (!field) return;
+
+  field.dataset.userEditing = "true";
+  window.clearTimeout(field._blackboxEditingTimer);
+  field._blackboxEditingTimer = window.setTimeout(() => {
+    delete field.dataset.userEditing;
+  }, 1200);
 }
 
 async function handleSubmit(event) {
@@ -567,7 +820,7 @@ async function withLoading(action) {
 function navigate(route) {
   window.location.hash = route;
   state.route = route;
-  render();
+  render(true);
 }
 
 function getActivePack(packId) {

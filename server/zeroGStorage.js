@@ -8,6 +8,8 @@ const realStorageEnabled = process.env.ZERO_G_STORAGE === "true";
 const strictRealStorage = process.env.ZERO_G_STORAGE_STRICT === "true";
 const rpcUrl = process.env.ZERO_G_RPC_URL || "https://evmrpc-testnet.0g.ai";
 const indexerRpc = process.env.ZERO_G_INDEXER_RPC || "https://indexer-storage-testnet-turbo.0g.ai";
+const explorerTxUrl = process.env.ZERO_G_EXPLORER_TX_URL || "https://chainscan-galileo.0g.ai/tx/{txHash}";
+const uploadTimeoutMs = Number(process.env.ZERO_G_UPLOAD_TIMEOUT_MS || 45000);
 let realStorageClientPromise;
 
 function digest(value) {
@@ -80,7 +82,7 @@ async function uploadRecordToZeroG({ id, kind, record }) {
   const [, treeErr] = await memData.merkleTree();
   if (treeErr !== null) throw new Error(`0G Merkle tree error: ${treeErr}`);
 
-  const [tx, uploadErr] = await indexer.upload(memData, rpcUrl, signer);
+  const [tx, uploadErr] = await withTimeout(indexer.upload(memData, rpcUrl, signer), uploadTimeoutMs, "0G upload timed out while waiting for the storage indexer/finality");
   if (uploadErr !== null) throw new Error(`0G upload error: ${uploadErr}`);
 
   const rootHash = tx.rootHash || tx.rootHashes?.[0];
@@ -90,12 +92,27 @@ async function uploadRecordToZeroG({ id, kind, record }) {
   return {
     id: rootHash,
     localId: id,
+    rootHash,
     txHash,
+    explorerUrl: txHash ? buildExplorerUrl(txHash) : "",
     uri: `0g://storage/${rootHash}`,
     provider: "0g-storage",
     indexerRpc,
     rpcUrl
   };
+}
+
+function buildExplorerUrl(txHash) {
+  if (explorerTxUrl.includes("{txHash}")) return explorerTxUrl.replace("{txHash}", txHash);
+  return `${explorerTxUrl.replace(/\/$/, "")}/${txHash}`;
+}
+
+function withTimeout(promise, timeoutMs, message) {
+  let timeout;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(`${message} after ${timeoutMs}ms`)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeout));
 }
 
 async function getRealStorageClient() {

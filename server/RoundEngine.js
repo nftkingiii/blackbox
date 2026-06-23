@@ -54,6 +54,37 @@ export class RoundEngine {
     return { ...result, room };
   }
 
+  async reconcile(room) {
+    if (!room?.currentRound) return room;
+
+    if (room.phase === PHASES.STARTING) {
+      if (Date.now() >= room.currentRound.startsAt) {
+        this.beginPlaying(room);
+      } else if (!this.timers.has(room.code)) {
+        this.scheduleCountdown(room);
+      }
+      return room;
+    }
+
+    if (room.phase !== PHASES.PLAYING) return room;
+
+    const timeLeft = this.updateRoundReveal(room.currentRound);
+    await this.runBotGuesses(room, timeLeft);
+
+    if (room.players.every((item) => item.hasGuessed)) {
+      await this.revealRound(room, { reason: "all-guessed" });
+      return room;
+    }
+
+    if (timeLeft <= 0) {
+      await this.revealRound(room, { reason: "timer" });
+      return room;
+    }
+
+    if (!this.timers.has(room.code)) this.scheduleRound(room);
+    return room;
+  }
+
   createRound(pack, index) {
     const now = Date.now();
     const timerSec = Number(pack.timerSec || 60);
@@ -137,21 +168,22 @@ export class RoundEngine {
   async revealRound(room, { reason = "manual" } = {}) {
     if (!room.currentRound || room.phase !== PHASES.PLAYING) return;
     this.clearTimer(room.code);
+    const revealedRound = room.currentRound;
     room.phase = PHASES.REVEAL;
-    room.currentRound.status = "CRACKED";
-    room.currentRound.maskedAnswer = room.currentRound.answer;
+    revealedRound.status = "CRACKED";
+    revealedRound.maskedAnswer = revealedRound.answer;
 
-    const solvers = room.currentRound.guesses.filter((guess) => guess.correct);
+    const solvers = revealedRound.guesses.filter((guess) => guess.correct);
     const scores = this.getScores(room);
-    const isFinalRound = room.currentRound.index >= room.settings.rounds;
-    room.currentRound.result = {
-      roundIndex: room.currentRound.index,
+    const isFinalRound = revealedRound.index >= room.settings.rounds;
+    revealedRound.result = {
+      roundIndex: revealedRound.index,
       totalRounds: room.settings.rounds,
-      answer: room.currentRound.answer,
+      answer: revealedRound.answer,
       reason,
       timedOut: reason === "timer",
       solvers,
-      guesses: room.currentRound.guesses,
+      guesses: revealedRound.guesses,
       scores,
       nextAction: isFinalRound ? "GAME_OVER" : "NEXT_ROUND"
     };
@@ -159,34 +191,34 @@ export class RoundEngine {
     if (isFinalRound) {
       room.phase = PHASES.GAME_OVER;
       room.winner = scores[0] || null;
-      room.currentRound.result.nextAction = "COMPLETE";
+      revealedRound.result.nextAction = "COMPLETE";
     }
 
     this.onUpdate(room.code);
 
     saveRoundProof({
       roomCode: room.code,
-      round: room.currentRound.index,
-      packId: room.currentRound.packId,
-      answer: room.currentRound.answer,
+      round: revealedRound.index,
+      packId: revealedRound.packId,
+      answer: revealedRound.answer,
       reason,
       solvers,
-      guesses: room.currentRound.guesses,
+      guesses: revealedRound.guesses,
       scores
     }).then((proof) => {
-      room.currentRound.zeroG = proof;
-      room.currentRound.result.zeroGProof = proof;
+      revealedRound.zeroG = proof;
+      if (revealedRound.result) revealedRound.result.zeroGProof = proof;
       this.onUpdate(room.code);
     }).catch((error) => {
-      room.currentRound.zeroG = {
+      revealedRound.zeroG = {
         provider: "0g-storage",
         error: error.message || "0G proof upload failed"
       };
-      room.currentRound.result.zeroGProof = room.currentRound.zeroG;
+      if (revealedRound.result) revealedRound.result.zeroGProof = revealedRound.zeroG;
       this.onUpdate(room.code);
     });
 
-    room.roundHistory.push(room.currentRound.result);
+    room.roundHistory.push(revealedRound.result);
   }
 
   finishGame(room) {
