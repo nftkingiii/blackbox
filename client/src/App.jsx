@@ -108,6 +108,7 @@ function renderLanding() {
   return `
     <main class="landing-screen">
       <div class="pixel-sky" aria-hidden="true"></div>
+      <div class="pixel-stars" aria-hidden="true"></div>
       <div class="contours" aria-hidden="true"></div>
       <div class="scanlines" aria-hidden="true"></div>
       <nav class="landing-nav" aria-label="Landing navigation">

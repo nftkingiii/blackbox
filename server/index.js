@@ -8,6 +8,7 @@ import { RoomManager } from "./RoomManager.js";
 import { RoundEngine } from "./RoundEngine.js";
 import { sanitizeRoom } from "./sanitizers.js";
 
+const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 3000);
 const clientRoot = fileURLToPath(new URL("../client/", import.meta.url));
 const streams = new Map();
@@ -45,8 +46,9 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(port, "127.0.0.1", () => {
-  console.log(`BlackBox running on http://127.0.0.1:${port}`);
+server.listen(port, host, () => {
+  const displayHost = host === "0.0.0.0" ? "127.0.0.1" : host;
+  console.log(`BlackBox running on http://${displayHost}:${port}`);
 });
 
 async function handleCreateRoom(request, response) {
