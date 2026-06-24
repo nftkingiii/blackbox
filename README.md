@@ -2,6 +2,8 @@
 
 BlackBox is an AI-native multiplayer mystery guessing game. Players join a room, pick a story pack, watch clues drip in over a timer, submit guesses, and score points for fast correct answers.
 
+V2 sessions run for 20 unique rounds and include responsive phone layouts, timed emoji clues, randomized letter reveals with visible highlights, atmospheric background audio, and gameplay sound cues.
+
 The MVP follows the PDF blueprint while staying dependency-free so it can run immediately:
 
 - `server/index.js` for HTTP routing

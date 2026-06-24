@@ -1,4 +1,5 @@
 import { maskWord, normalize } from "./baseMode.js";
+import { rugCoinV2Packs } from "./v2Stories.js";
 
 export const rugCoinMode = {
   id: "rugCoin",
@@ -86,6 +87,7 @@ export const rugCoinMode = {
         { at: 0.33, type: "hint", payload: "A screen dot plus the word for creating new tokens. Nine letters." }
       ],
       zeroG: { uri: "0g://blackbox/seed/ticker-pixelmint" }
-    }
+    },
+    ...rugCoinV2Packs
   ]
 };

@@ -166,8 +166,26 @@ select:focus-visible {
   gap: 12px;
 }
 
-.nav-links button {
+.nav-links button,
+.audio-controls button {
   padding: 8px 16px;
+}
+
+.audio-controls,
+.landing-nav-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.audio-controls button {
+  min-height: 42px;
+  color: var(--ink);
+  background: #bdbdbd;
+  border: 4px solid;
+  border-color: var(--paper-light) var(--shadow) var(--shadow) var(--paper-light);
+  font-family: var(--pixel-font);
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .home-screen,
@@ -592,6 +610,33 @@ select {
   text-align: center;
 }
 
+.letter-cell {
+  display: inline-block;
+  min-width: 0.72em;
+  transition: color 150ms linear, background-color 150ms linear, text-shadow 150ms linear;
+}
+
+.letter-cell.newly-revealed {
+  color: #101010;
+  background: #ffea32;
+  box-shadow: 0 0 0 5px #ffea32, 0 0 24px rgba(255, 234, 50, 0.78);
+  text-shadow: none;
+  animation: letterRevealFlash 1.8s steps(5, end) both;
+}
+
+@keyframes letterRevealFlash {
+  0%, 100% {
+    color: white;
+    background: transparent;
+    box-shadow: none;
+  }
+  12%, 72% {
+    color: #101010;
+    background: #ffea32;
+    box-shadow: 0 0 0 5px #ffea32, 0 0 24px rgba(255, 234, 50, 0.78);
+  }
+}
+
 .clue-grid {
   grid-area: clues;
   display: grid;
@@ -626,6 +671,19 @@ select {
   font-size: 18px;
   font-weight: 800;
   line-height: 1.35;
+}
+
+.emoji-clue .terminal-clue {
+  display: grid;
+  place-items: center;
+}
+
+.emoji-clue .clue-copy {
+  width: 100%;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+  font-size: clamp(38px, 7vw, 72px);
+  letter-spacing: 0.12em;
+  text-align: center;
 }
 
 .terminal-clue {
@@ -896,7 +954,8 @@ code {
 }
 
 .landing-connect,
-.landing-action {
+.landing-action,
+.landing-sound {
   color: #f4f4ef;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(244, 244, 239, 0.22);
@@ -904,9 +963,14 @@ code {
   font-weight: 900;
 }
 
-.landing-connect {
+.landing-connect,
+.landing-sound {
   min-height: 36px;
   padding: 0 16px;
+}
+
+.landing-sound {
+  font-size: 10px;
 }
 
 .landing-hero {
@@ -1206,6 +1270,10 @@ code {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .audio-controls {
+    display: contents;
+  }
+
   .desktop-grid,
   .mode-strip,
   .lobby-layout,
@@ -1234,13 +1302,34 @@ code {
 }
 
 @media (max-width: 560px) {
+  body {
+    font-size: 15px;
+    background-size: 22px 22px, 22px 22px, 100% 100%;
+  }
+
   .topbar,
   .home-screen,
   .setup-screen,
   .lobby-screen,
   .packs-screen,
   .game-screen {
-    width: min(100% - 20px, 1180px);
+    width: min(100% - 12px, 1180px);
+  }
+
+  .topbar {
+    position: relative;
+    gap: 8px;
+    padding: 8px 0 10px;
+  }
+
+  .brand-button {
+    width: 100%;
+    justify-content: center;
+    box-shadow: 4px 5px 0 rgba(0, 0, 0, 0.34);
+  }
+
+  .brand-button .eyebrow {
+    font-size: 15px;
   }
 
   .brand-button strong {
@@ -1248,8 +1337,10 @@ code {
   }
 
   .titlebar {
-    min-height: 40px;
-    font-size: 18px;
+    min-height: 38px;
+    padding-left: 10px;
+    font-size: 15px;
+    overflow-wrap: anywhere;
   }
 
   .hero-copy h1,
@@ -1261,17 +1352,211 @@ code {
   }
 
   .window-body {
-    padding: 18px;
+    padding: 14px;
+  }
+
+  .window {
+    border-width: 3px;
+    box-shadow: 5px 6px 0 rgba(0, 0, 0, 0.38);
+  }
+
+  .nav-links {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .nav-links button,
+  .audio-controls button {
+    min-height: 46px;
+    padding: 7px 6px;
+    font-size: 11px;
+    box-shadow: 3px 4px 0 rgba(0, 0, 0, 0.34);
+  }
+
+  input,
+  select {
+    min-height: 52px;
+    font-size: 16px;
+  }
+
+  .setup-screen,
+  .lobby-screen {
+    display: block;
+    min-height: auto;
+    padding-top: 12px;
+  }
+
+  .setup-card,
+  .lobby-card {
+    width: 100%;
+  }
+
+  .game-screen {
+    min-height: auto;
+    padding: 6px 0 24px;
+  }
+
+  .game-window,
+  .game-scene {
+    min-height: auto;
+  }
+
+  .game-scene {
+    gap: 12px;
+    padding: 12px;
+    background-size: 14px 14px;
   }
 
   .game-header {
     flex-direction: column;
+    gap: 10px;
+  }
+
+  .game-header h1 {
+    font-size: clamp(27px, 9vw, 40px);
+    line-height: 1;
+    overflow-wrap: anywhere;
+  }
+
+  .timer-paper {
+    width: 100%;
+    padding: 9px 10px;
+  }
+
+  .case-status {
+    padding: 12px;
+    font-size: 21px;
+    border-width: 4px;
   }
 
   .masked-word {
-    min-height: 130px;
-    font-size: 36px;
-    letter-spacing: 0.08em;
+    min-height: 112px;
+    padding: 18px 10px;
+    border-width: 4px;
+    font-size: clamp(25px, 9vw, 38px);
+    letter-spacing: 0.025em;
+    line-height: 1.35;
+  }
+
+  .letter-cell {
+    min-width: 0.61em;
+  }
+
+  .clue-grid .clue-panel {
+    min-height: 180px;
+  }
+
+  .clue-panel .window-body {
+    padding: 12px;
+  }
+
+  .clue-panel p,
+  .terminal-clue {
+    font-size: 17px;
+  }
+
+  .emoji-clue .clue-copy {
+    font-size: clamp(36px, 15vw, 58px);
+  }
+
+  .guess-form,
+  .reveal-card {
+    padding: 12px;
+  }
+
+  .guess-form .primary-btn,
+  .reveal-card button,
+  .setup-card .primary-btn {
+    min-height: 50px;
+  }
+
+  .score-paper {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .pack-grid {
+    gap: 14px;
+  }
+
+  .landing-nav {
+    width: calc(100% - 24px);
+    min-height: 62px;
+  }
+
+  .landing-brand {
+    letter-spacing: 0.16em;
+  }
+
+  .landing-sound {
+    display: none;
+  }
+
+  .landing-hero {
+    width: calc(100% - 24px);
+    gap: 0;
+    padding: 6px 0 36px;
+  }
+
+  .landing-cube-field {
+    min-height: 330px;
+  }
+
+  .cube-wrap {
+    width: 100%;
+    min-height: 330px;
+  }
+
+  .landing-copy h1 {
+    margin: 12px 0;
+    font-size: clamp(49px, 18vw, 76px);
+    letter-spacing: 0.17em;
+  }
+
+  .landing-tagline {
+    line-height: 1.6;
+    letter-spacing: 0.16em;
+  }
+
+  .home-cube-stage {
+    min-height: 210px;
+  }
+
+  .home-cube {
+    min-height: 220px;
+  }
+
+  .mode-strip {
+    gap: 14px;
+  }
+
+  .wallet-panel {
+    padding: 12px;
+  }
+
+  .toast {
+    right: 10px;
+    bottom: 10px;
+    max-width: calc(100vw - 20px);
+  }
+}
+
+@media (max-width: 380px) {
+  .hero-copy h1,
+  .setup-card h1,
+  .lobby-card h1,
+  .section-heading h1,
+  .game-over-window h1 {
+    font-size: 30px;
+  }
+
+  .nav-links button,
+  .audio-controls button {
+    font-size: 10px;
+  }
+
+  .masked-word {
+    font-size: 24px;
   }
 }
 

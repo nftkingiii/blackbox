@@ -1,4 +1,5 @@
 import { fuzzyMatch, maskWord } from "./baseMode.js";
+import { wrongNumberV2Packs } from "./v2Stories.js";
 
 export const wrongNumberMode = {
   id: "wrongNumber",
@@ -84,6 +85,7 @@ export const wrongNumberMode = {
         { at: 0.33, type: "hint", payload: "They think you repair cars. Eight letters." }
       ],
       zeroG: { uri: "0g://blackbox/seed/wrong-number-mechanic" }
-    }
+    },
+    ...wrongNumberV2Packs
   ]
 };

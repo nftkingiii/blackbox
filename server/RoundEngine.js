@@ -104,6 +104,9 @@ export class RoundEngine {
       clueIntervalSec: CLUE_INTERVAL_SEC,
       letterRevealIntervalSec: LETTER_REVEAL_INTERVAL_SEC,
       revealedLetterCount: 0,
+      revealedIndices: [...mask.forced],
+      latestRevealIndices: [],
+      latestRevealAt: null,
       nextClueAt: null,
       nextLetterAt: null,
       guesses: [],
@@ -138,7 +141,16 @@ export class RoundEngine {
     const timeLeft = this.getTimeLeft(round);
     const ratio = round.timerSec ? 1 - timeLeft / round.timerSec : 1;
     round.status = ratio > 0.72 ? "CRACKING" : "SEALED";
+    const previousRevealCount = round.revealedLetterCount;
     round.revealedLetterCount = letterRevealCount(timeLeft, round.timerSec);
+    round.revealedIndices = [
+      ...round.mask.forced,
+      ...round.mask.revealOrder.slice(0, round.revealedLetterCount)
+    ];
+    if (round.revealedLetterCount > previousRevealCount) {
+      round.latestRevealIndices = round.mask.revealOrder.slice(previousRevealCount, round.revealedLetterCount);
+      round.latestRevealAt = Date.now();
+    }
     round.maskedAnswer = maskState(round.mask, round.revealedLetterCount);
     round.clues = this.visibleClues(round, timeLeft);
     this.updateMilestones(round, timeLeft);

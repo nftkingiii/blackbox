@@ -1,4 +1,5 @@
 import { exactMatch, maskWord } from "./baseMode.js";
+import { seedPhraseV2Packs } from "./v2Stories.js";
 
 export const seedPhraseMode = {
   id: "seedPhrase",
@@ -84,6 +85,7 @@ export const seedPhraseMode = {
         { at: 0.33, type: "hint", payload: "A sheltered place where ships dock. Six letters." }
       ],
       zeroG: { uri: "0g://blackbox/seed/seed-harbor" }
-    }
+    },
+    ...seedPhraseV2Packs
   ]
 };

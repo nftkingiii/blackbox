@@ -68,7 +68,8 @@ export class ModeRegistry {
   findFreshPack({ packs, usedPackIds = [], usedAnswers = [] }) {
     const usedIds = new Set(usedPackIds || []);
     const usedAnswerSet = new Set(usedAnswers || []);
-    return packs.find((pack) => !usedIds.has(pack.id) && !usedAnswerSet.has(normalizeAnswer(pack.answer)));
+    const available = packs.filter((pack) => !usedIds.has(pack.id) && !usedAnswerSet.has(normalizeAnswer(pack.answer)));
+    return available[Math.floor(Math.random() * available.length)];
   }
 
   getMode(modeId) {

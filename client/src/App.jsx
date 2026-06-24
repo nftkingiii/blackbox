@@ -1,5 +1,6 @@
 import { api, openRoomStream } from "./socket.js";
 import { saveProfile, setPlayerId, store } from "./store.js";
+import { audio } from "./audio.js";
 
 const app = document.querySelector("#app");
 
@@ -15,6 +16,8 @@ const state = {
   clueDisplayText: "",
   clueTargetText: "",
   pendingClue: null,
+  highlightedLetterIndices: [],
+  highlightRoundIndex: null,
   showWalletSecret: false,
   formDrafts: {
     soloForm: { roundTimeSec: "60" },
@@ -28,6 +31,8 @@ let clueTick = null;
 let roomSyncTick = null;
 let refreshInFlight = false;
 let lastRefreshAt = 0;
+let highlightTimer = null;
+let lastCountdownCue = null;
 
 init();
 
@@ -99,8 +104,18 @@ function renderTopbar() {
         <button data-route="host">Host Room</button>
         <button data-route="join">Join</button>
         <button data-route="packs">Packs</button>
+        ${renderAudioControls()}
       </nav>
     </header>
+  `;
+}
+
+function renderAudioControls() {
+  return `
+    <span class="audio-controls" aria-label="Audio controls">
+      <button type="button" data-toggle-music aria-pressed="${audio.musicEnabled}">MUSIC ${audio.musicEnabled ? "ON" : "OFF"}</button>
+      <button type="button" data-toggle-effects aria-pressed="${audio.effectsEnabled}">SFX ${audio.effectsEnabled ? "ON" : "OFF"}</button>
+    </span>
   `;
 }
 
@@ -113,7 +128,10 @@ function renderLanding() {
       <div class="scanlines" aria-hidden="true"></div>
       <nav class="landing-nav" aria-label="Landing navigation">
         <span class="landing-brand"><span class="landing-brand-mark"></span>BLACK BOX</span>
-        <button class="landing-connect" type="button" data-enter-home>ENTER</button>
+        <span class="landing-nav-actions">
+          <button class="landing-sound" type="button" data-toggle-music>MUSIC ${audio.musicEnabled ? "ON" : "OFF"}</button>
+          <button class="landing-connect" type="button" data-enter-home>ENTER</button>
+        </span>
       </nav>
       <section class="landing-hero">
         <div class="landing-copy">
@@ -387,7 +405,7 @@ function renderGame() {
           </div>
         </div>
         <div class="case-status">${escapeHtml(round.status || "SEALED")}</div>
-        <div class="masked-word">${escapeHtml(revealed ? result.answer.toUpperCase() : round.maskedAnswer)}</div>
+        <div class="masked-word">${renderMaskedWord(round, revealed ? result.answer.toUpperCase() : round.maskedAnswer, revealed)}</div>
         ${renderClueSlideshow(currentClue, round.currentClueIndex || 0, clueKey, clueText)}
         <div class="guess-panel">
           ${room.phase === "STARTING" ? renderCountdown(round) : room.phase === "PLAYING" ? renderGuessForm(guessed) : renderReveal(result, round.zeroG)}
@@ -406,7 +424,7 @@ function renderClueSlideshow(clue, index, clueKey, clueText) {
   const displayText = state.activeClueKey === clueKey ? state.clueDisplayText : state.clueDisplayText || clueText;
   return `
     <div class="clue-grid">
-      <article class="window clue-panel">
+      <article class="window clue-panel ${clue?.type === "emoji" ? "emoji-clue" : ""}">
         <div class="titlebar"><span>Clue ${index + 1}</span><span class="window-control" aria-hidden="true">_</span></div>
         <div class="window-body">
           <span>${escapeHtml(clue?.type || "text")}</span>
@@ -417,6 +435,16 @@ function renderClueSlideshow(clue, index, clueKey, clueText) {
       </article>
     </div>
   `;
+}
+
+function renderMaskedWord(round, value, revealed = false) {
+  const active = !revealed && state.highlightRoundIndex === round.index
+    ? new Set(state.highlightedLetterIndices)
+    : new Set();
+  return [...String(value || "")].map((character, index) => {
+    const className = active.has(index) ? "letter-cell newly-revealed" : "letter-cell";
+    return `<span class="${className}" data-letter-index="${index}">${escapeHtml(character)}</span>`;
+  }).join("");
 }
 
 function renderPacksPage() {
@@ -557,6 +585,21 @@ async function handleClick(event) {
   const button = event.target.closest?.("button");
   if (!button) {
     if (event.target.closest?.("input, select, textarea, option, label")) return;
+    return;
+  }
+
+  audio.unlock().catch(() => {});
+  audio.cue("click");
+
+  if (button.hasAttribute("data-toggle-music")) {
+    audio.toggleMusic();
+    render(true);
+    return;
+  }
+
+  if (button.hasAttribute("data-toggle-effects")) {
+    audio.toggleEffects();
+    render(true);
     return;
   }
 
@@ -780,6 +823,7 @@ async function submitGuess(text) {
       body: { playerId: store.playerId, text }
     });
     state.room = result.room;
+    audio.cue(result.correct ? "correct" : "wrong");
     setNotice(result.correct ? `Correct. ${result.points} points.` : "Guess locked.");
     render();
   });
@@ -798,6 +842,7 @@ function setActiveRoom(result) {
   setPlayerId(result.playerId || store.playerId);
   if (store.events) store.events.close();
   store.events = openRoomStream(state.room.code, (room) => {
+    trackRoomEffects(state.room, room);
     state.room = room;
     if (["STARTING", "PLAYING", "REVEAL", "GAME_OVER"].includes(room.phase)) state.route = "game";
     renderOrPatchGame(room);
@@ -879,11 +924,16 @@ function updateTimerDom() {
     const timer = document.querySelector(".timer-label");
     if (label) label.textContent = `Round boots in ${startsIn}s...`;
     if (timer) timer.textContent = startsIn ? `Booting ${startsIn}s` : "Starting...";
+    if (startsIn > 0 && startsIn <= 3 && startsIn !== lastCountdownCue) {
+      lastCountdownCue = startsIn;
+      audio.cue("countdown");
+    }
     if (startsIn <= 0) refreshRoom();
     return;
   }
 
   const left = Math.max(0, Math.ceil((round.endsAt - Date.now()) / 1000));
+  lastCountdownCue = null;
   const total = round.timerSec || 60;
   const progress = Math.max(0, Math.min(100, (left / total) * 100));
   const label = document.querySelector(".timer-label");
@@ -977,6 +1027,7 @@ async function refreshRoom() {
   lastRefreshAt = Date.now();
   try {
     const room = await api(`/api/rooms/${state.room.code}`);
+    trackRoomEffects(state.room, room);
     state.room = room;
     renderOrPatchGame(room);
   } catch {
@@ -1003,7 +1054,7 @@ function patchPlayingRoom(room) {
   if (!round) return;
 
   const masked = document.querySelector(".masked-word");
-  if (masked) masked.textContent = round.maskedAnswer;
+  if (masked) masked.innerHTML = renderMaskedWord(round, round.maskedAnswer);
 
   const score = document.querySelector(".score-paper strong");
   if (score) score.textContent = room.players.map((player) => `${player.name} ${player.score}`).join(" / ");
@@ -1020,6 +1071,40 @@ function patchPlayingRoom(room) {
   if (clueType) clueType.textContent = currentClue?.type || "text";
 
   syncClueAnimation();
+}
+
+function trackRoomEffects(previousRoom, nextRoom) {
+  const previousRound = previousRoom?.currentRound;
+  const nextRound = nextRoom?.currentRound;
+  if (!nextRound) return;
+
+  if (!previousRound || previousRound.index !== nextRound.index) {
+    state.highlightedLetterIndices = [];
+    state.highlightRoundIndex = nextRound.index;
+    audio.cue("boot");
+    return;
+  }
+
+  if (nextRound.currentClueIndex > (previousRound.currentClueIndex ?? 0)) audio.cue("clue");
+
+  if (nextRound.revealedLetterCount > (previousRound.revealedLetterCount || 0)) {
+    state.highlightRoundIndex = nextRound.index;
+    state.highlightedLetterIndices = nextRound.latestRevealIndices || [];
+    audio.cue("reveal");
+    window.clearTimeout(highlightTimer);
+    highlightTimer = window.setTimeout(() => {
+      state.highlightedLetterIndices = [];
+      if (state.route === "game") {
+        const masked = document.querySelector(".masked-word");
+        if (masked && state.room?.currentRound) {
+          masked.innerHTML = renderMaskedWord(state.room.currentRound, state.room.currentRound.maskedAnswer);
+        }
+      }
+    }, 1800);
+  }
+
+  if (previousRoom.phase !== nextRoom.phase && nextRoom.phase === "REVEAL") audio.cue("roundEnd");
+  if (previousRoom.phase !== nextRoom.phase && nextRoom.phase === "GAME_OVER") audio.cue("gameOver");
 }
 
 function escapeHtml(value) {

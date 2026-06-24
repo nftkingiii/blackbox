@@ -9,7 +9,7 @@ export class RoomManager {
     this.rooms = new Map();
   }
 
-  createRoom({ name = "Host", packId, roundTimeSec = 60, rounds = 3, soloMode = false }) {
+  createRoom({ name = "Host", packId, roundTimeSec = 60, soloMode = false }) {
     const player = this.createPlayer(name);
     const code = this.createRoomCode();
     const players = [player];
@@ -21,7 +21,7 @@ export class RoomManager {
       settings: {
         packId: packId || this.modeRegistry.listPublicPacks()[0]?.id,
         roundTimeSec: Number(roundTimeSec || 60),
-        rounds: Number(rounds || 3),
+        rounds: 20,
         soloMode: Boolean(soloMode)
       },
       players,
