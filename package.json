@@ -5,10 +5,21 @@
   "type": "module",
   "scripts": {
     "dev": "node server/index.js",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "deploy:escrow": "node scripts/deploy-escrow.js",
+    "bootstrap:testnet": "node scripts/bootstrap-testnet.js"
   },
   "dependencies": {
     "@0gfoundation/0g-storage-ts-sdk": "^1.2.6",
     "ethers": "6.13.1"
+  },
+  "devDependencies": {
+    "solc": "^0.8.30"
+  },
+  "overrides": {
+    "ws": "^8.21.0",
+    "open-jsonrpc-provider": {
+      "axios": "0.32.0"
+    }
   }
 }

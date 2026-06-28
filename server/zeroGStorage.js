@@ -6,11 +6,15 @@ import { fileURLToPath } from "node:url";
 const dataRoot = fileURLToPath(new URL("../data/zero-g/", import.meta.url));
 const realStorageEnabled = process.env.ZERO_G_STORAGE === "true";
 const strictRealStorage = process.env.ZERO_G_STORAGE_STRICT === "true";
+const requireRealStorage = process.env.ZERO_G_STORAGE_REQUIRED === "true";
 const rpcUrl = process.env.ZERO_G_RPC_URL || "https://evmrpc-testnet.0g.ai";
 const indexerRpc = process.env.ZERO_G_INDEXER_RPC || "https://indexer-storage-testnet-turbo.0g.ai";
 const explorerTxUrl = process.env.ZERO_G_EXPLORER_TX_URL || "https://chainscan-galileo.0g.ai/tx/{txHash}";
+const storageExplorerUrl = process.env.ZERO_G_STORAGE_EXPLORER_URL || "https://storagescan-galileo.0g.ai";
 const uploadTimeoutMs = Number(process.env.ZERO_G_UPLOAD_TIMEOUT_MS || 45000);
+const answerPepper = process.env.BLACKBOX_ANSWER_PEPPER || "";
 let realStorageClientPromise;
+let manifestStatus = { state: "pending", proof: null, error: "" };
 
 function digest(value) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -22,16 +26,18 @@ async function ensureDir(path) {
 
 async function writeRecord(kind, record) {
   const id = digest(record);
-  const dir = join(dataRoot, kind);
-  await ensureDir(dir);
-  await writeFile(join(dir, `${id}.json`), JSON.stringify(record, null, 2), "utf8");
+  if (!requireRealStorage) {
+    const dir = join(dataRoot, kind);
+    await ensureDir(dir);
+    await writeFile(join(dir, `${id}.json`), JSON.stringify(record, null, 2), "utf8");
+  }
 
   if (realStorageEnabled) {
     try {
       const uploaded = await uploadRecordToZeroG({ id, kind, record });
       return uploaded;
     } catch (error) {
-      if (strictRealStorage) throw error;
+      if (strictRealStorage || requireRealStorage) throw error;
       return {
         id,
         uri: `0g://blackbox/${kind}/${id}`,
@@ -41,10 +47,74 @@ async function writeRecord(kind, record) {
     }
   }
 
+  if (requireRealStorage) throw new Error("0G Storage is required but ZERO_G_STORAGE is not enabled.");
   return {
     id,
     uri: `0g://blackbox/${kind}/${id}`,
     provider: "local-dev-0g-adapter"
+  };
+}
+
+export async function initializeStoryManifest(packs) {
+  manifestStatus = { state: "uploading", proof: null, error: "" };
+  try {
+    if (requireRealStorage && !answerPepper) {
+      throw new Error("BLACKBOX_ANSWER_PEPPER is required when strict 0G storage is enabled.");
+    }
+    const proof = await saveStoryPack({
+      version: process.env.BLACKBOX_STORY_VERSION || "v2",
+      packs: packs.map(storageSafePack),
+      assets: await readClientAssets()
+    });
+    manifestStatus = { state: proof.provider === "0g-storage" ? "ready" : "local", proof, error: "" };
+    if (requireRealStorage && proof.provider !== "0g-storage") throw new Error("Story manifest was not persisted to 0G Storage.");
+    return proof;
+  } catch (error) {
+    manifestStatus = { state: "failed", proof: null, error: error.message };
+    if (requireRealStorage) throw error;
+    return null;
+  }
+}
+
+function storageSafePack(pack) {
+  const { answer, ...publicPack } = pack;
+  return {
+    ...publicPack,
+    answerCommitment: createHash("sha256")
+      .update(`${pack.id}:${normalizeAnswer(answer)}:${answerPepper || "local-dev"}`)
+      .digest("hex")
+  };
+}
+
+function normalizeAnswer(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+async function readClientAssets() {
+  const files = [
+    "index.html",
+    "src/App.jsx",
+    "src/styles.css",
+    "src/audio.js",
+    "src/socket.js",
+    "src/store.js",
+    "assets/favicon.svg",
+    "assets/blackbox-cube.svg",
+    "vendor/ethers.umd.min.js"
+  ];
+  return Promise.all(files.map(async (name) => {
+    const path = fileURLToPath(new URL(`../client/${name}`, import.meta.url));
+    const content = await readFile(path, "utf8");
+    return { name, sha256: digest(content), content };
+  }));
+}
+
+export function getStorageStatus() {
+  return {
+    enabled: realStorageEnabled,
+    required: requireRealStorage,
+    strict: strictRealStorage || requireRealStorage,
+    manifest: manifestStatus
   };
 }
 
@@ -95,6 +165,7 @@ async function uploadRecordToZeroG({ id, kind, record }) {
     rootHash,
     txHash,
     explorerUrl: txHash ? buildExplorerUrl(txHash) : "",
+    storageExplorerUrl,
     uri: `0g://storage/${rootHash}`,
     provider: "0g-storage",
     indexerRpc,

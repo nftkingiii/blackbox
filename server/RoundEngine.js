@@ -1,11 +1,13 @@
 import { PHASES } from "../shared/events.js";
 import { saveRoundProof } from "./zeroGStorage.js";
+import { settleRoomStake } from "./chainService.js";
 
 const SYMBOLS = ["@", "#", "$", "%", "&", "+", "*", "!", ")", "("];
 const VOWELS = "aeiou";
 const COUNTDOWN_MS = 3000;
 const CLUE_INTERVAL_SEC = 20;
 const LETTER_REVEAL_INTERVAL_SEC = 20;
+const MULTIPLAYER_TRANSITION_MS = 2000;
 
 export class RoundEngine {
   constructor({ modeRegistry, onUpdate }) {
@@ -32,7 +34,7 @@ export class RoundEngine {
     room.currentRound = this.createRound({ ...pack, timerSec: room.settings.roundTimeSec || pack.timerSec }, room.currentRoundIndex);
     room.phase = PHASES.STARTING;
     room.players.forEach((player) => {
-      player.hasGuessed = false;
+      player.hasGuessed = player.connected === false;
     });
 
     this.scheduleCountdown(room);
@@ -220,6 +222,15 @@ export class RoundEngine {
     }).then((proof) => {
       revealedRound.zeroG = proof;
       if (revealedRound.result) revealedRound.result.zeroGProof = proof;
+      if (isFinalRound && room.stake?.enabled) {
+        settleRoomStake(room, proof.rootHash).then((settlement) => {
+          room.stake.settlement = settlement;
+          this.onUpdate(room.code);
+        }).catch((error) => {
+          room.stake.settlement = { error: error.message || "Prize settlement failed." };
+          this.onUpdate(room.code);
+        });
+      }
       this.onUpdate(room.code);
     }).catch((error) => {
       revealedRound.zeroG = {
@@ -231,6 +242,10 @@ export class RoundEngine {
     });
 
     room.roundHistory.push(revealedRound.result);
+
+    if (!isFinalRound && !room.settings.soloMode) {
+      this.scheduleNextRound(room);
+    }
   }
 
   finishGame(room) {
@@ -273,6 +288,15 @@ export class RoundEngine {
       this.onUpdate(room.code);
     }, 1000);
     this.timers.set(room.code, tick);
+  }
+
+  scheduleNextRound(room) {
+    this.clearTimer(room.code);
+    const timeout = setTimeout(() => {
+      if (room.phase !== PHASES.REVEAL) return;
+      this.startRound(room);
+    }, MULTIPLAYER_TRANSITION_MS);
+    this.timers.set(room.code, timeout);
   }
 
   clearTimer(code) {

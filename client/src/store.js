@@ -7,7 +7,9 @@ function readProfile() {
       walletAddress: saved.walletAddress || "",
       walletPrivateKey: saved.walletPrivateKey || "",
       walletMnemonic: saved.walletMnemonic || "",
-      cubes: Number.isFinite(Number(saved.cubes)) ? Number(saved.cubes) : 0,
+      balance: saved.balance || "0",
+      fundingTxHash: saved.fundingTxHash || "",
+      lastStakeMatchId: saved.lastStakeMatchId || "",
       walletCreatedAt: saved.walletCreatedAt || ""
     };
   } catch {
@@ -15,7 +17,9 @@ function readProfile() {
       walletAddress: "",
       walletPrivateKey: "",
       walletMnemonic: "",
-      cubes: 0,
+      balance: "0",
+      fundingTxHash: "",
+      lastStakeMatchId: "",
       walletCreatedAt: ""
     };
   }

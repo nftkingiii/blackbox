@@ -243,6 +243,21 @@ select:focus-visible {
   box-shadow: none;
 }
 
+.titlebar .exit-control {
+  flex: 0 0 auto;
+  cursor: pointer;
+  pointer-events: auto;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.titlebar .exit-control:hover,
+.titlebar .exit-control:focus-visible {
+  color: white;
+  background: #b91f2e;
+  border-color: #ef6c76 #56060d #56060d #ef6c76;
+}
+
 .window-body {
   padding: clamp(20px, 4vw, 34px);
 }
@@ -1186,6 +1201,21 @@ code {
   background: #fff6cf;
   border: 3px solid #111;
   font-family: var(--pixel-font);
+}
+
+.wallet-requirement,
+.auto-next {
+  padding: 10px 12px;
+  background: #fff6cf;
+  border: 3px solid #111;
+  font-family: var(--pixel-font);
+  font-weight: 900;
+}
+
+.error-copy {
+  color: var(--danger);
+  font-family: var(--pixel-font);
+  font-weight: 900;
 }
 
 .proof-panel {

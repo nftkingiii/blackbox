@@ -7,6 +7,7 @@ const app = document.querySelector("#app");
 const state = {
   route: "landing",
   packs: [],
+  chain: null,
   selectedPackId: "",
   room: null,
   notice: "",
@@ -21,7 +22,7 @@ const state = {
   showWalletSecret: false,
   formDrafts: {
     soloForm: { roundTimeSec: "60" },
-    hostForm: { roundTimeSec: "60" },
+    hostForm: { roundTimeSec: "60", stakeAmount: "0.005" },
     joinForm: {}
   }
 };
@@ -44,7 +45,19 @@ async function init() {
   document.addEventListener("change", handleFieldEdit);
   document.addEventListener("submit", handleSubmit);
   syncRoute();
+  await loadChainConfig();
   await loadPacks();
+}
+
+async function loadChainConfig() {
+  try {
+    state.chain = await api("/api/chain/config");
+    if (store.profile.walletAddress) {
+      await refreshWalletBalance(false).catch(() => {});
+    }
+  } catch (error) {
+    state.chain = { error: error.message, stakingEnabled: false, sponsoredFundingEnabled: false };
+  }
 }
 
 function syncRoute() {
@@ -110,6 +123,10 @@ function renderTopbar() {
   `;
 }
 
+function renderWindowControl() {
+  return `<button class="window-control exit-control" type="button" data-exit aria-label="Exit BlackBox">X</button>`;
+}
+
 function renderAudioControls() {
   return `
     <span class="audio-controls" aria-label="Audio controls">
@@ -161,13 +178,13 @@ function renderHome() {
           ${renderCubeVisual("home-cube")}
         </div>
         <div class="window hero-window home-hero-window">
-          <div class="titlebar"><span>BlackBox.exe</span><span class="window-control" aria-hidden="true">_</span></div>
+          <div class="titlebar"><span>BlackBox.exe</span>${renderWindowControl()}</div>
           <div class="window-body hero-copy home-hero-copy">
             <p class="eyebrow">Mystery OS / Server authoritative</p>
             <h1>Crack the case before the clock locks.</h1>
             <p>
               BlackBox is a backend-first multiplayer mystery engine with solo runs, private rooms,
-              server-side answers, timed clues, scoring, wallet profiles, Cubes, and 0G-ready proof records.
+              server-side answers, timed clues, scoring, native 0G wallets, staked rooms, and verifiable 0G records.
             </p>
             <div class="hero-actions">
               <button class="primary-btn" data-solo-now>Solo Play</button>
@@ -185,10 +202,10 @@ function renderHome() {
           <strong>Instant run</strong>
           <p>Start immediately without waiting for another player.</p>
         </div></article>
-        <article class="window"><div class="titlebar"><span>Cubes</span></div><div class="window-body">
-          <span>Cubes</span>
-          <strong>100 bonus</strong>
-          <p>Generate a local wallet profile and receive starter Cubes for game actions.</p>
+        <article class="window"><div class="titlebar"><span>0G Wallet</span></div><div class="window-body">
+          <span>0G</span>
+          <strong>Galileo testnet</strong>
+          <p>Generate a test wallet, receive sponsored gas when configured, and enter staked rooms.</p>
         </div></article>
         <article class="window"><div class="titlebar"><span>0G Proofs</span></div><div class="window-body">
           <span>0G</span>
@@ -226,19 +243,24 @@ function renderWalletPanel() {
   const profile = store.profile;
   const hasWallet = Boolean(profile.walletAddress);
   return `
-    <section class="wallet-panel" aria-label="Wallet and Cubes">
+    <section class="wallet-panel" aria-label="0G wallet">
       <div>
-        <p class="eyebrow">Wallet / Cubes</p>
-        <h2>${hasWallet ? "BlackBox wallet ready." : "Generate a test profile."}</h2>
-        <p>${hasWallet ? "Your local wallet profile is ready for future 0G testnet actions. Cubes are in-game credits, not an on-chain token." : "Create a browser-local wallet and receive a 100 Cubes welcome bonus for gameplay utilities."}</p>
+        <p class="eyebrow">0G Galileo wallet</p>
+        <h2>${hasWallet ? "Testnet wallet ready." : "Generate a test wallet."}</h2>
+        <p>${hasWallet ? "This balance is read directly from 0G Galileo. Keep the private key secret; this browser wallet is intended for testnet only." : "Create a browser-local test wallet, then request sponsored gas or use the official 0G faucet."}</p>
       </div>
       <div class="wallet-card">
-        <span>Cubes</span>
-        <strong>${escapeHtml(profile.cubes || 0)}</strong>
+        <span>Balance</span>
+        <strong>${escapeHtml(profile.balance || "0")} 0G</strong>
         ${hasWallet ? `<code>${escapeHtml(shortAddress(profile.walletAddress))}</code>` : `<em>No wallet yet</em>`}
       </div>
       <div class="wallet-actions">
-        ${hasWallet ? `<button class="secondary-btn" type="button" data-copy-proof="${escapeHtml(profile.walletAddress)}">Copy Address</button>` : `<button class="primary-btn" type="button" data-generate-wallet>Generate Wallet + 100 Cubes</button>`}
+        ${hasWallet ? `<button class="secondary-btn" type="button" data-copy-proof="${escapeHtml(profile.walletAddress)}">Copy Address</button>` : `<button class="primary-btn" type="button" data-generate-wallet>Generate 0G Test Wallet</button>`}
+        ${hasWallet ? `<button class="secondary-btn" type="button" data-refresh-balance>Refresh Balance</button>` : ""}
+        ${hasWallet && state.chain?.sponsoredFundingEnabled ? `<button class="secondary-btn" type="button" data-fund-wallet>Request ${escapeHtml(state.chain.welcomeAmount)} 0G</button>` : ""}
+        ${hasWallet && state.chain?.faucetUrl ? `<a class="proof-link" href="${escapeHtml(state.chain.faucetUrl)}" target="_blank" rel="noreferrer">Official Faucet</a>` : ""}
+        ${hasWallet && state.chain?.explorerUrl ? `<a class="proof-link" href="${escapeHtml(state.chain.explorerUrl)}/address/${escapeHtml(profile.walletAddress)}" target="_blank" rel="noreferrer">View Wallet</a>` : ""}
+        ${hasWallet && profile.lastStakeMatchId && state.chain?.stakingEnabled ? `<button class="secondary-btn" type="button" data-claim-escrow>Claim Prize / Refund</button>` : ""}
         ${hasWallet ? `<button class="secondary-btn" type="button" data-toggle-wallet-secret>${state.showWalletSecret ? "Hide Secret" : "Show Secret"}</button>` : ""}
       </div>
       ${hasWallet && state.showWalletSecret ? `
@@ -262,6 +284,7 @@ function renderProofPanel(zeroG) {
       <code>${escapeHtml(zeroG.uri || zeroG.id || "proof pending")}</code>
       <div class="proof-actions">
         ${zeroG.explorerUrl ? `<a class="proof-link" href="${escapeHtml(zeroG.explorerUrl)}" target="_blank" rel="noreferrer">View Transaction</a>` : ""}
+        ${zeroG.storageExplorerUrl ? `<a class="proof-link" href="${escapeHtml(zeroG.storageExplorerUrl)}" target="_blank" rel="noreferrer">Open StorageScan</a>` : ""}
         ${zeroG.txHash ? `<button class="secondary-btn" type="button" data-copy-proof="${escapeHtml(zeroG.txHash)}">Copy Tx</button>` : ""}
         ${zeroG.uri ? `<button class="secondary-btn" type="button" data-copy-proof="${escapeHtml(zeroG.uri)}">Copy URI</button>` : ""}
       </div>
@@ -274,7 +297,7 @@ function renderSoloSetup() {
   return `
     <main class="setup-screen">
       <section class="window setup-card">
-        <div class="titlebar"><span>SoloPlay.wnd</span><span class="window-control" aria-hidden="true">[]</span></div>
+        <div class="titlebar"><span>SoloPlay.wnd</span>${renderWindowControl()}</div>
         <div class="window-body">
         <p class="eyebrow">Solo run with backend bots</p>
         <h1>Pick a case and start now.</h1>
@@ -294,7 +317,7 @@ function renderHostSetup() {
   return `
     <main class="setup-screen">
       <section class="window setup-card">
-        <div class="titlebar"><span>CreateRoom.wnd</span><span class="window-control" aria-hidden="true">[]</span></div>
+        <div class="titlebar"><span>CreateRoom.wnd</span>${renderWindowControl()}</div>
         <div class="window-body">
         <p class="eyebrow">Multiplayer</p>
         <h1>Create a private room.</h1>
@@ -302,6 +325,8 @@ function renderHostSetup() {
           ${renderNameField("name", "Host name", "Room Host")}
           ${renderPackSelect()}
           ${renderTimerSelect()}
+          ${renderStakeField()}
+          ${renderWalletRequirement()}
           <button class="primary-btn" type="button" data-submit-setup="hostForm">${state.loading ? "Creating..." : "Create Room"}</button>
         </form>
         </div>
@@ -314,7 +339,7 @@ function renderJoinSetup() {
   return `
     <main class="setup-screen">
       <section class="window setup-card compact">
-        <div class="titlebar"><span>JoinRoom.wnd</span><span class="window-control" aria-hidden="true">[]</span></div>
+        <div class="titlebar"><span>JoinRoom.wnd</span>${renderWindowControl()}</div>
         <div class="window-body">
         <p class="eyebrow">Join room</p>
         <h1>Enter the room code.</h1>
@@ -324,6 +349,7 @@ function renderJoinSetup() {
             <input name="code" required maxlength="4" autocomplete="off" placeholder="X7K2" />
           </label>
           ${renderNameField("name", "Player name", "Guest")}
+          ${renderWalletRequirement()}
           <button class="primary-btn" type="button" data-submit-setup="joinForm">${state.loading ? "Joining..." : "Join Room"}</button>
         </form>
         </div>
@@ -342,7 +368,7 @@ function renderLobby() {
   return `
     <main class="lobby-screen">
       <section class="window lobby-card">
-        <div class="titlebar"><span>Lobby: ${escapeHtml(room.code)}</span><span class="window-control" aria-hidden="true">[]</span></div>
+        <div class="titlebar"><span>Lobby: ${escapeHtml(room.code)}</span>${renderWindowControl()}</div>
         <div class="window-body lobby-layout">
         <div>
           <p class="eyebrow">${room.settings.soloMode ? "Solo run" : "Waiting room"}</p>
@@ -352,14 +378,16 @@ function renderLobby() {
             <div><dt>Rounds</dt><dd>${room.settings.rounds}</dd></div>
             <div><dt>Timer</dt><dd>${room.settings.roundTimeSec}s</dd></div>
             <div><dt>Mode</dt><dd>${room.settings.soloMode ? "Solo + bots" : "Multiplayer"}</dd></div>
+            ${room.stake?.enabled ? `<div><dt>Stake</dt><dd>${escapeHtml(room.stake.amount)} 0G</dd></div>` : ""}
           </dl>
         </div>
         <div>
         ${room.settings.soloMode ? "" : `<div class="join-code"><span>Room Code</span><strong>${escapeHtml(room.code)}</strong></div>`}
         <div class="player-list">
-          ${room.players.map((player) => `<span>${escapeHtml(player.name)}${player.bot ? " <em>BOT</em>" : ""} <b>${player.score}</b></span>`).join("")}
+          ${room.players.map((player) => `<span>${escapeHtml(player.name)}${player.bot ? " <em>BOT</em>" : ""}${room.stake?.enabled ? ` <em>${player.stakeConfirmed ? "STAKED" : "PENDING"}</em>` : ""} <b>${player.score}</b></span>`).join("")}
         </div>
-        ${isHost ? `<button class="primary-btn" type="button" data-start-round>Start Round</button>` : `<p class="muted">Waiting for the host to start the round.</p>`}
+        ${room.stake?.enabled && !room.players.find((player) => player.id === store.playerId)?.stakeConfirmed ? `<button class="primary-btn" type="button" data-deposit-stake>Deposit ${escapeHtml(room.stake.amount)} 0G Stake</button>` : ""}
+        ${isHost ? `<button class="primary-btn" type="button" data-start-round>Start Match</button>` : `<p class="muted">Waiting for the host to start the match.</p>`}
         </div>
         </div>
       </section>
@@ -392,7 +420,7 @@ function renderGame() {
   return `
     <main class="game-screen">
       <section class="window game-window">
-        <div class="titlebar"><span>${escapeHtml(windowTitle)}</span><span class="window-control" aria-hidden="true">_</span></div>
+        <div class="titlebar"><span>${escapeHtml(windowTitle)}</span>${renderWindowControl()}</div>
         <div class="window-body game-scene">
         <div class="game-header">
           <div>
@@ -425,7 +453,7 @@ function renderClueSlideshow(clue, index, clueKey, clueText) {
   return `
     <div class="clue-grid">
       <article class="window clue-panel ${clue?.type === "emoji" ? "emoji-clue" : ""}">
-        <div class="titlebar"><span>Clue ${index + 1}</span><span class="window-control" aria-hidden="true">_</span></div>
+        <div class="titlebar"><span>Clue ${index + 1}</span>${renderWindowControl()}</div>
         <div class="window-body">
           <span>${escapeHtml(clue?.type || "text")}</span>
           <div class="terminal-clue">
@@ -498,7 +526,7 @@ function renderReveal(result, zeroG) {
         ${scores.map((score, index) => `<span>${index + 1}. ${escapeHtml(score.name)} <b>${score.score}</b></span>`).join("")}
       </div>
       ${renderProofPanel(zeroG)}
-      ${isFinal ? "" : `<button class="secondary-btn" type="button" data-start-round>Next Round</button>`}
+      ${isFinal ? "" : state.room?.settings?.soloMode ? `<button class="secondary-btn" type="button" data-start-round>Next Round</button>` : `<span class="auto-next">Next round starts in 2 seconds...</span>`}
     </div>
   `;
 }
@@ -508,7 +536,7 @@ function renderGameOver(room) {
   return `
     <main class="game-screen">
       <section class="window game-over-window">
-        <div class="titlebar"><span>GameOver.wnd</span><span class="window-control" aria-hidden="true">[]</span></div>
+        <div class="titlebar"><span>GameOver.wnd</span>${renderWindowControl()}</div>
         <div class="window-body">
           <p class="eyebrow">Final standings</p>
           <h1>${escapeHtml(room.winner?.name || scores[0]?.name || "No winner")} cracked the box.</h1>
@@ -516,6 +544,8 @@ function renderGameOver(room) {
           <div class="score-list final">
             ${scores.map((score, index) => `<span>${index + 1}. ${escapeHtml(score.name)} <b>${score.score}</b></span>`).join("")}
           </div>
+          ${room.stake?.enabled ? renderSettlement(room.stake) : ""}
+          ${room.stake?.enabled ? `<button class="primary-btn" type="button" data-claim-escrow>Claim Prize</button>` : ""}
           <button class="primary-btn" data-route="home">Back to Desktop</button>
         </div>
       </section>
@@ -560,6 +590,27 @@ function renderTimerSelect() {
   `;
 }
 
+function renderStakeField() {
+  const value = getDraftValue("stakeAmount", "0.005");
+  return `
+    <label>
+      Entry stake per player
+      <input name="stakeAmount" type="number" min="0.0001" step="0.0001" value="${escapeHtml(value)}" ${state.chain?.stakingEnabled ? "" : "disabled"} />
+      <small>${state.chain?.stakingEnabled ? "Held by the BlackBox escrow contract on Galileo." : "Escrow is not deployed yet; configure BLACKBOX_ESCROW_ADDRESS."}</small>
+    </label>
+  `;
+}
+
+function renderWalletRequirement() {
+  return `<p class="wallet-requirement">${store.profile.walletAddress ? `Wallet: ${escapeHtml(shortAddress(store.profile.walletAddress))}` : "Generate a 0G test wallet from the home screen before entering multiplayer."}</p>`;
+}
+
+function renderSettlement(stake) {
+  if (stake.settlement?.error) return `<p class="error-copy">Settlement pending: ${escapeHtml(stake.settlement.error)}</p>`;
+  if (!stake.settlement?.txHash) return `<p class="muted">Prize settlement is being submitted to 0G.</p>`;
+  return `<a class="proof-link" href="${escapeHtml(stake.settlement.explorerUrl)}" target="_blank" rel="noreferrer">View Prize Settlement</a>`;
+}
+
 function getDraftValue(name, fallback = "") {
   const formId = state.route === "host" ? "hostForm" : state.route === "join" ? "joinForm" : "soloForm";
   return state.formDrafts[formId]?.[name] ?? fallback;
@@ -569,7 +620,7 @@ function renderEmptyRoute(title, body) {
   return `
     <main class="setup-screen">
       <section class="window setup-card compact">
-        <div class="titlebar"><span>Message.wnd</span><span class="window-control" aria-hidden="true">[]</span></div>
+        <div class="titlebar"><span>Message.wnd</span>${renderWindowControl()}</div>
         <div class="window-body">
         <p class="eyebrow">BlackBox</p>
         <h1>${escapeHtml(title)}</h1>
@@ -603,6 +654,11 @@ async function handleClick(event) {
     return;
   }
 
+  if (button.hasAttribute("data-exit")) {
+    await exitBlackBox();
+    return;
+  }
+
   if (button.hasAttribute("data-enter-home")) {
     navigate("home");
     return;
@@ -610,6 +666,26 @@ async function handleClick(event) {
 
   if (button.hasAttribute("data-generate-wallet")) {
     await generateWalletProfile();
+    return;
+  }
+
+  if (button.hasAttribute("data-refresh-balance")) {
+    await refreshWalletBalance();
+    return;
+  }
+
+  if (button.hasAttribute("data-fund-wallet")) {
+    await fundWallet();
+    return;
+  }
+
+  if (button.hasAttribute("data-deposit-stake")) {
+    await depositStake();
+    return;
+  }
+
+  if (button.hasAttribute("data-claim-escrow")) {
+    await claimEscrow();
     return;
   }
 
@@ -664,10 +740,12 @@ async function generateWalletProfile() {
       walletAddress: wallet.address,
       walletPrivateKey: wallet.privateKey,
       walletMnemonic: wallet.mnemonic?.phrase || "",
-      cubes: 100,
+      balance: "0",
       walletCreatedAt: new Date().toISOString()
     });
-    setNotice("Wallet generated. 100 Cubes added.");
+    setNotice("0G test wallet generated.");
+    if (state.chain?.sponsoredFundingEnabled) await fundWallet();
+    else await refreshWalletBalance(false).catch(() => {});
   });
 }
 
@@ -790,8 +868,9 @@ async function startSoloRun(body) {
 }
 
 async function createRoom(body) {
+  if (!requireMultiplayerWallet()) return;
   await withLoading(async () => {
-    const result = await api("/api/rooms", { method: "POST", body: { ...body, soloMode: false } });
+    const result = await api("/api/rooms", { method: "POST", body: { ...body, walletAddress: store.profile.walletAddress, soloMode: false } });
     setActiveRoom(result);
     setNotice(`Room ${result.room.code} created.`);
     navigate("lobby");
@@ -799,11 +878,125 @@ async function createRoom(body) {
 }
 
 async function joinRoom(body) {
+  if (!requireMultiplayerWallet()) return;
   await withLoading(async () => {
-    const result = await api(`/api/rooms/${String(body.code).toUpperCase()}/join`, { method: "POST", body: { name: body.name } });
+    const result = await api(`/api/rooms/${String(body.code).toUpperCase()}/join`, { method: "POST", body: { name: body.name, walletAddress: store.profile.walletAddress } });
     setActiveRoom(result);
     navigate(result.room.phase === "LOBBY" ? "lobby" : "game");
   });
+}
+
+function requireMultiplayerWallet() {
+  if (!store.profile.walletAddress || !store.profile.walletPrivateKey) {
+    setError("Generate a 0G test wallet before entering multiplayer.");
+    return false;
+  }
+  return true;
+}
+
+async function refreshWalletBalance(showNotice = true) {
+  if (!store.profile.walletAddress) return;
+  const balance = await api(`/api/chain/balance/${store.profile.walletAddress}`);
+  saveProfile({ balance: balance.balance });
+  if (showNotice) setNotice(`Balance: ${balance.balance} 0G`);
+  else render();
+}
+
+async function fundWallet() {
+  if (!store.profile.walletAddress) return;
+  await withLoading(async () => {
+    const result = await api("/api/chain/fund", { method: "POST", body: { address: store.profile.walletAddress } });
+    saveProfile({ fundingTxHash: result.txHash });
+    await refreshWalletBalance(false);
+    setNotice(`${result.amount} 0G welcome gas received.`);
+  });
+}
+
+async function depositStake() {
+  if (!state.room?.stake?.enabled) return;
+  if (!requireMultiplayerWallet()) return;
+  await withLoading(async () => {
+    const ethers = await loadEthers();
+    const provider = createGalileoProvider(ethers);
+    const wallet = new ethers.Wallet(store.profile.walletPrivateKey, provider);
+    const authorization = await api(`/api/rooms/${state.room.code}/stake-authorization`, {
+      method: "POST",
+      body: { playerId: store.playerId }
+    });
+    const abi = ["function joinMatch(bytes32 matchId,uint256 stake,bytes authorization) payable"];
+    const contract = new ethers.Contract(state.chain.escrowAddress, abi, wallet);
+    const amount = BigInt(state.room.stake.amountWei);
+    const tx = await contract.joinMatch(state.room.stake.matchId, amount, authorization.signature, { value: amount });
+    await waitForGalileoReceipt(provider, tx.hash);
+    state.room = await api(`/api/rooms/${state.room.code}/stake`, {
+      method: "POST",
+      body: { playerId: store.playerId, txHash: tx.hash }
+    });
+    saveProfile({ lastStakeMatchId: state.room.stake.matchId });
+    await refreshWalletBalance(false);
+    setNotice("Stake confirmed on 0G.");
+  });
+}
+
+async function claimEscrow() {
+  const matchId = state.room?.stake?.matchId || store.profile.lastStakeMatchId;
+  if (!matchId || !state.chain?.escrowAddress) return setError("No escrow match is available to claim.");
+  if (!requireMultiplayerWallet()) return;
+  await withLoading(async () => {
+    const ethers = await loadEthers();
+    const provider = createGalileoProvider(ethers);
+    const wallet = new ethers.Wallet(store.profile.walletPrivateKey, provider);
+    const abi = [
+      "function claimable(bytes32 matchId,address player) view returns (uint256)",
+      "function claim(bytes32 matchId)",
+      "function claimRefund(bytes32 matchId)"
+    ];
+    const contract = new ethers.Contract(state.chain.escrowAddress, abi, wallet);
+    const prize = await contract.claimable(matchId, wallet.address);
+    let tx;
+    if (prize > 0n) tx = await contract.claim(matchId);
+    else tx = await contract.claimRefund(matchId);
+    await waitForGalileoReceipt(provider, tx.hash);
+    await refreshWalletBalance(false);
+    setNotice("Escrow funds claimed.");
+  });
+}
+
+async function waitForGalileoReceipt(provider, txHash, timeoutMs = 180000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const receipt = await provider.getTransactionReceipt(txHash);
+      if (receipt) {
+        if (receipt.status !== 1) throw new Error("Transaction reverted.");
+        return receipt;
+      }
+    } catch (error) {
+      if (!String(error.message).includes("no matching receipts found")) throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+  }
+  throw new Error("Timed out waiting for Galileo transaction confirmation.");
+}
+
+function createGalileoProvider(ethers) {
+  return new ethers.JsonRpcProvider(
+    state.chain.rpcUrl,
+    { chainId: state.chain.chainId, name: "0g-galileo" },
+    { staticNetwork: true }
+  );
+}
+
+async function exitBlackBox() {
+  if (state.room && ["lobby", "game"].includes(state.route)) {
+    const activeStaked = state.room.stake?.enabled && state.room.phase !== "LOBBY" && state.room.phase !== "GAME_OVER";
+    if (activeStaked && !window.confirm("Leaving an active staked match forfeits participation. Exit anyway?")) return;
+    await api(`/api/rooms/${state.room.code}/leave`, { method: "POST", body: { playerId: store.playerId } }).catch(() => {});
+    if (store.events) store.events.close();
+    store.events = null;
+    state.room = null;
+  }
+  navigate("landing");
 }
 
 async function startRound() {

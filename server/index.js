@@ -7,6 +7,16 @@ import { ModeRegistry } from "./ModeRegistry.js";
 import { RoomManager } from "./RoomManager.js";
 import { RoundEngine } from "./RoundEngine.js";
 import { sanitizeRoom } from "./sanitizers.js";
+import {
+  cancelRoomStake,
+  authorizeStake,
+  getChainConfig,
+  getWalletBalance,
+  sponsorWallet,
+  lockRoomStake,
+  verifyStake
+} from "./chainService.js";
+import { getStorageStatus, initializeStoryManifest } from "./zeroGStorage.js";
 
 const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 3000);
@@ -15,6 +25,8 @@ const streams = new Map();
 const modeRegistry = new ModeRegistry();
 const roomManager = new RoomManager({ modeRegistry });
 const roundEngine = new RoundEngine({ modeRegistry, onUpdate: broadcast });
+const storyManifestReady = initializeStoryManifest(modeRegistry.storyPacks);
+storyManifestReady.catch(() => {});
 
 const mime = {
   ".html": "text/html; charset=utf-8",
@@ -29,14 +41,23 @@ const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host}`);
 
-    if (url.pathname === "/api/health") return json(response, { ok: true, name: "BlackBox" });
-    if (url.pathname === "/api/story-packs" && request.method === "GET") return json(response, modeRegistry.listPublicPacks());
+    if (url.pathname === "/api/health") return json(response, { ok: true, name: "BlackBox", chain: getChainConfig(), storage: getStorageStatus() });
+    if (url.pathname === "/api/chain/config" && request.method === "GET") return json(response, getChainConfig());
+    if (url.pathname.match(/^\/api\/chain\/balance\/0x[0-9a-fA-F]{40}$/) && request.method === "GET") return json(response, await getWalletBalance(url.pathname.split("/").pop()));
+    if (url.pathname === "/api/chain/fund" && request.method === "POST") return handleFundWallet(request, response);
+    if (url.pathname === "/api/story-packs" && request.method === "GET") {
+      await storyManifestReady;
+      return json(response, modeRegistry.listPublicPacks());
+    }
     if (url.pathname === "/api/solo-runs" && request.method === "POST") return handleCreateSoloRun(request, response);
     if (url.pathname === "/api/rooms" && request.method === "POST") return handleCreateRoom(request, response);
     if (url.pathname.match(/^\/api\/rooms\/[^/]+\/events$/) && request.method === "GET") return handleEvents(url, response);
     if (url.pathname.match(/^\/api\/rooms\/[^/]+\/join$/) && request.method === "POST") return handleJoinRoom(url, request, response);
     if (url.pathname.match(/^\/api\/rooms\/[^/]+\/start$/) && request.method === "POST") return handleStartRound(url, request, response);
     if (url.pathname.match(/^\/api\/rooms\/[^/]+\/guess$/) && request.method === "POST") return handleGuess(url, request, response);
+    if (url.pathname.match(/^\/api\/rooms\/[^/]+\/stake$/) && request.method === "POST") return handleStake(url, request, response);
+    if (url.pathname.match(/^\/api\/rooms\/[^/]+\/stake-authorization$/) && request.method === "POST") return handleStakeAuthorization(url, request, response);
+    if (url.pathname.match(/^\/api\/rooms\/[^/]+\/leave$/) && request.method === "POST") return handleLeave(url, request, response);
     if (url.pathname.startsWith("/api/rooms/") && request.method === "GET") return handleGetRoom(url, response);
 
     return serveStatic(url, response);
@@ -52,11 +73,17 @@ server.listen(port, host, () => {
 });
 
 async function handleCreateRoom(request, response) {
-  const result = roomManager.createRoom(await readJson(request));
+  await storyManifestReady;
+  const body = await readJson(request);
+  if (Number(body.stakeAmount || 0) > 0 && !getChainConfig().stakingEnabled) {
+    return json(response, { error: "Staked rooms are unavailable until the escrow contract and operator are configured." }, 503);
+  }
+  const result = roomManager.createRoom(body);
   json(response, { room: sanitizeRoom(result.room), playerId: result.playerId });
 }
 
 async function handleCreateSoloRun(request, response) {
+  await storyManifestReady;
   const body = await readJson(request);
   const result = roomManager.createRoom({ ...body, soloMode: true });
   roundEngine.startRound(result.room);
@@ -73,7 +100,7 @@ async function handleGetRoom(url, response) {
 async function handleJoinRoom(url, request, response) {
   const body = await readJson(request);
   try {
-    const result = roomManager.joinRoom(url.pathname.split("/")[3], body.name || "Player");
+    const result = roomManager.joinRoom(url.pathname.split("/")[3], body.name || "Player", body.walletAddress);
     if (!result) return json(response, { error: "Room not found." }, 404);
     broadcast(result.room.code);
     json(response, { room: sanitizeRoom(result.room), playerId: result.playerId });
@@ -83,13 +110,67 @@ async function handleJoinRoom(url, request, response) {
 }
 
 async function handleStartRound(url, request, response) {
+  await storyManifestReady;
   const room = getRoomFromUrl(url);
   if (!room) return json(response, { error: "Room not found." }, 404);
   await roundEngine.reconcile(room);
   const body = await readJson(request);
   if (body.playerId !== room.hostId) return json(response, { error: "Only the host can start rounds." }, 403);
+  if (!room.settings.soloMode && room.players.filter((player) => !player.bot && player.connected !== false).length < 2) {
+    return json(response, { error: "At least two connected players are required." }, 409);
+  }
+  if (room.stake?.enabled && room.players.some((player) => !player.bot && !player.stakeConfirmed)) {
+    return json(response, { error: "Every player must confirm the room stake before the match starts." }, 409);
+  }
+  if (room.stake?.enabled && !room.stake.lock?.txHash) {
+    room.stake.lock = await lockRoomStake(room);
+  }
   roundEngine.startRound(room);
   json(response, sanitizeRoom(room));
+}
+
+async function handleFundWallet(request, response) {
+  const body = await readJson(request);
+  json(response, await sponsorWallet(body.address, request.socket.remoteAddress || ""));
+}
+
+async function handleStake(url, request, response) {
+  const room = getRoomFromUrl(url);
+  if (!room) return json(response, { error: "Room not found." }, 404);
+  const body = await readJson(request);
+  const player = room.players.find((item) => item.id === body.playerId);
+  if (!player?.walletAddress) return json(response, { error: "Player wallet is missing." }, 400);
+  const stake = await verifyStake({ room, player, txHash: body.txHash });
+  player.stakeConfirmed = true;
+  player.stakeTxHash = stake.txHash;
+  broadcast(room.code);
+  json(response, sanitizeRoom(room));
+}
+
+async function handleStakeAuthorization(url, request, response) {
+  const room = getRoomFromUrl(url);
+  if (!room) return json(response, { error: "Room not found." }, 404);
+  const body = await readJson(request);
+  const player = room.players.find((item) => item.id === body.playerId);
+  if (!player) return json(response, { error: "Player not found." }, 404);
+  json(response, await authorizeStake({ room, player }));
+}
+
+async function handleLeave(url, request, response) {
+  const room = getRoomFromUrl(url);
+  if (!room) return json(response, { ok: true });
+  const body = await readJson(request);
+  const wasHost = room.hostId === body.playerId;
+  roomManager.leaveRoom(room, body.playerId);
+  if (wasHost && room.phase === "LOBBY") {
+    if (room.stake?.enabled) {
+      room.stake.cancellation = await cancelRoomStake(room).catch((error) => ({ error: error.message }));
+    }
+    room.cancelled = true;
+    room.phase = "GAME_OVER";
+  }
+  broadcast(room.code);
+  json(response, { ok: true, room: sanitizeRoom(room) });
 }
 
 async function handleGuess(url, request, response) {
